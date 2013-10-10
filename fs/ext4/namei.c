@@ -2506,7 +2506,7 @@ retry:
 		d_tmpfile(dentry, inode);
 		err = ext4_orphan_add(handle, inode);
 		if (err)
-			goto err_drop_inode;
+			goto err_unlock_inode;
 		mark_inode_dirty(inode);
 		unlock_new_inode(inode);
 	}
@@ -2518,7 +2518,6 @@ retry:
 err_unlock_inode:
 	ext4_journal_stop(handle);
 	unlock_new_inode(inode);
-	iput(inode);
 	return err;
 }
 #endif
