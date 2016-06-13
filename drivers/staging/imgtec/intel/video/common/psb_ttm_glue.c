@@ -520,14 +520,17 @@ int psb_video_getparam(struct drm_device *dev, void *data,
 		else {
 			mutex_lock(&g_ied_mutex);
 			DRM_INFO("Video: ied_ref: %d\n", g_ied_ref);
-			while (g_ied_ref) {
-				ret = sepapp_drm_playback(false);
-				if (ret) {
-					DRM_ERROR("IED Clean-up \
-						Failed:0x%x\n", ret);
-					break;
+			/* To make sure no IED session still working. */
+			if (list_empty(&dev_priv->video_ctx)) {
+				while (g_ied_ref) {
+					ret = sepapp_drm_playback(false);
+					if (ret) {
+						DRM_ERROR("IED Clean-up \
+							Failed:0x%x\n", ret);
+						break;
+					}
+					g_ied_ref--;
 				}
-				g_ied_ref--;
 			}
 			mutex_unlock(&g_ied_mutex);
 		}
