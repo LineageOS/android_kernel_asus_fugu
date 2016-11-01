@@ -36,6 +36,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
+#include <linux/hardirq.h>
 
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
@@ -2960,6 +2961,11 @@ static int intel_ipcutil_panic_handler(struct notifier_block *this,
 	int ret;
 
 	pr_debug("%s: Set kernel panic reason to OSNIB\n", __func__);
+
+	if (in_interrupt()) {
+		pr_err("Invoked in interrupt cxt\n");
+		goto out;
+	}
 
 	ret = intel_scu_ipc_read_osnib_wd(&wd);
 	if (ret) {
