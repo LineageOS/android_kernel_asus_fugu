@@ -35,9 +35,8 @@
 #include "osfunc.h"
 #include "rgxdebug.h"
 #include "dfrgx_utilstats.h"
-#include "pvr_tlcommon.h"
 #include "img_types.h"
-#include "pvrsrv.h"
+#include "pvrsrv_ext.h"
 #include "rgxdevice.h"
 #include "rgxinit.h"
 

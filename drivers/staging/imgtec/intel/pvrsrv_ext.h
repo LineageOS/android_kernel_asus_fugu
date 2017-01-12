@@ -39,9 +39,31 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
-#if !defined(_PVRSRV_EXT_H_)
-#define _PVRSRV_EXT_H_
+#if !defined(__PRVRSRV_EXT_H__)
+#define __PRVRSRV_EXT_H__
 
+#include "img_types.h"
+#include "pvrsrv_error.h"
 #include "pvrsrv.h"
 
-#endif /* !defined(_PVRSRV_EXT_H_) */
+typedef enum PVRSRV_DEVICE_TYPE
+{
+	PVRSRV_DEVICE_TYPE_UNKNOWN = 0,
+	PVRSRV_DEVICE_TYPE_RGX = 10,
+} PVRSRV_DEVICE_TYPE;
+
+typedef enum _PVRSRV_DEVICE_CLASS_
+{
+	PVRSRV_DEVICE_CLASS_3D = 0,
+} PVRSRV_DEVICE_CLASS;
+
+PVRSRV_ERROR PVRSRVEnumerateDevicesKM(IMG_UINT32 *pui32NumDevices,
+									  PVRSRV_DEVICE_TYPE *peDeviceType,
+									  PVRSRV_DEVICE_CLASS *peDeviceClass,
+									  IMG_UINT32 *pui32DeviceIndex);
+
+PVRSRV_ERROR PVRSRVAcquireDeviceDataKM(IMG_UINT32 ui32DevIndex,
+									   PVRSRV_DEVICE_TYPE eDeviceType,
+									   IMG_HANDLE *phDevCookie);
+
+#endif /* !defined(__PRVRSRV_EXT_H__) */

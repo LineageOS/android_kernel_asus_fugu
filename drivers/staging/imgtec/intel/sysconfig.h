@@ -59,11 +59,13 @@ static void SysDevPAddrToCpuPAddr(IMG_HANDLE hPrivData,
 		IMG_DEV_PHYADDR *psDevPAddr);
 
 static PVRSRV_ERROR SysDevicePostPowerState(
+		IMG_HANDLE hSysData,
 		PVRSRV_DEV_POWER_STATE eNewPowerState,
 		PVRSRV_DEV_POWER_STATE eCurrentPowerState,
 		IMG_BOOL bForced);
 
 static PVRSRV_ERROR SysDevicePrePowerState(
+		IMG_HANDLE hSysData,
 		PVRSRV_DEV_POWER_STATE eNewPowerState,
 		PVRSRV_DEV_POWER_STATE eCurrentPowerState,
 		IMG_BOOL bForced);
@@ -112,13 +114,14 @@ static IMG_UINT32 gauiBIFTilingHeapXStrides[RGXFWIF_NUM_BIF_TILING_CONFIGS] =
 static PVRSRV_DEVICE_CONFIG sDevices[] =
 {
 	{
-		.eDeviceType		= PVRSRV_DEVICE_TYPE_RGX,
-		.pszName		= "RGX",
+		.pszName		= "moorefield",
+		.pszVersion		= NULL,
 
 		/* Device setup information */
 		.sRegsCpuPBase		= { 0 },
 		.ui32RegsSize		= 0,
 		.ui32IRQ		= 0,
+		.eCacheSnoopingMode	= PVRSRV_DEVICE_SNOOP_CPU_ONLY,
 
 		/* No power management on no HW system */
 		.pfnPrePowerState	= SysDevicePrePowerState,
@@ -127,33 +130,21 @@ static PVRSRV_DEVICE_CONFIG sDevices[] =
 		.hDevData		= &sRGXData,
 		.hSysData		= NULL,
 
-		.aui32PhysHeapID	= { 0, 0, 0 },
-	}
-};
-
-static PVRSRV_SYSTEM_CONFIG sSysConfig =
-{
-	.pszSystemName			= "Merrifield with Rogue",
-	.uiDeviceCount			= sizeof(sDevices) /
-					  sizeof(PVRSRV_DEVICE_CONFIG),
-	.pasDevices			= &sDevices[0],
-
-	/* Physcial memory heaps */
-	.ui32PhysHeapCount		= sizeof(gsPhysHeapConfig) /
+		/* Physical memory heaps */
+		.ui32PhysHeapCount	= sizeof(gsPhysHeapConfig) /
 					  sizeof(PHYS_HEAP_CONFIG),
-	.pasPhysHeaps			= &(gsPhysHeapConfig[0]),
+		.pasPhysHeaps		= &gsPhysHeapConfig[0],
 
-	/* No power management on no HW system */
-	.pfnSysPrePowerState		= NULL,
-	.pfnSysPostPowerState		= NULL,
+		.aui32PhysHeapID	= { 0, 0, 0 },
 
-	.pui32BIFTilingHeapConfigs	=
-		&gauiBIFTilingHeapXStrides[0],
-	.ui32BIFTilingHeapCount		=
-		IMG_ARR_NUM_ELEMS(gauiBIFTilingHeapXStrides),
-
-	/* no cache snooping */
-	.eCacheSnoopingMode		= PVRSRV_SYSTEM_SNOOP_CPU_ONLY,
+		/* BIF Tiling mode configuration */
+		.eBIFTilingMode		= RGXFWIF_BIFTILINGMODE_256x16,
+		.pui32BIFTilingHeapConfigs =
+			&gauiBIFTilingHeapXStrides[0],
+		.ui32BIFTilingHeapCount	=
+			IMG_ARR_NUM_ELEMS(gauiBIFTilingHeapXStrides),
+		.pfnSysDevFeatureDepInit = NULL
+	}
 };
 
 #define VENDOR_ID_MERRIFIELD	0x8086

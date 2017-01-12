@@ -47,7 +47,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvr_debugfs.h"
 #include "allocmem.h"
 
-#define PVR_DEBUGFS_DIR_NAME "pvr" PVRSRV_GPUVIRT_OSID_STR
+#define PVR_DEBUGFS_DIR_NAME PVR_DRM_NAME
 
 /* Define to set the PVR_DPF debug output level for pvr_debugfs.
  * Normally, leave this set to PVR_DBGDRIV_MESSAGE, but when debugging
@@ -95,7 +95,7 @@ typedef struct _PVR_DEBUGFS_ENTRY_DATA_
 
 typedef struct _PVR_DEBUGFS_PRIV_DATA_
 {
-	struct seq_operations	*psReadOps;
+	const struct seq_operations *psReadOps;
 	PVRSRV_ENTRY_WRITE_FUNC	*pfnWrite;
 	void			*pvData;
 	PVRSRV_INC_FSENTRY_PVDATA_REFCNT_FN *pfIncPvDataRefCnt;
@@ -394,9 +394,12 @@ int PVRDebugFSInit(void)
 */ /**************************************************************************/
 void PVRDebugFSDeInit(void)
 {
-	debugfs_remove(gpsPVRDebugFSEntryDir);
-	gpsPVRDebugFSEntryDir = NULL;
-	mutex_destroy(&gDebugFSLock);
+	if (gpsPVRDebugFSEntryDir != NULL)
+	{
+		debugfs_remove(gpsPVRDebugFSEntryDir);
+		gpsPVRDebugFSEntryDir = NULL;
+		mutex_destroy(&gDebugFSLock);
+	}
 }
 
 /*************************************************************************/ /*!
@@ -504,7 +507,7 @@ void PVRDebugFSRemoveEntryDir(PVR_DEBUGFS_DIR_DATA **ppsDir)
 */ /**************************************************************************/
 int PVRDebugFSCreateEntry(const char *pszName,
 			  PVR_DEBUGFS_DIR_DATA *psParentDir,
-			  struct seq_operations *psReadOps,
+			  const struct seq_operations *psReadOps,
 			  PVRSRV_ENTRY_WRITE_FUNC *pfnWrite,
 			  PVRSRV_INC_FSENTRY_PVDATA_REFCNT_FN *pfnIncPvDataRefCnt,
 			  PVRSRV_DEC_FSENTRY_PVDATA_REFCNT_FN *pfnDecPvDataRefCnt,
@@ -703,9 +706,11 @@ static IMG_BOOL _RefDirEntry(PVR_DEBUGFS_DIR_DATA *psDirEntry)
 {
 	IMG_BOOL bStatus = IMG_FALSE;
 
+	PVR_ASSERT(psDirEntry != NULL && psDirEntry->psDir != NULL);
+
 	mutex_lock(&gDebugFSLock);
 
-	if (psDirEntry != NULL && psDirEntry->ui32RefCount > 0)
+	if (psDirEntry->ui32RefCount > 0)
 	{
 		/* Increment refCount */
 		psDirEntry->ui32RefCount++;
@@ -727,7 +732,9 @@ static void _UnrefAndMaybeDestroyDirEntryWhileLocked(PVR_DEBUGFS_DIR_DATA **ppsD
 {
 	PVR_DEBUGFS_DIR_DATA *psDirEntry = *ppsDirEntry;
 
-	if (psDirEntry != NULL && psDirEntry->ui32RefCount > 0)
+	PVR_ASSERT(psDirEntry != NULL && psDirEntry->psDir != NULL);
+
+	if (psDirEntry->ui32RefCount > 0)
 	{
 		/* Decrement refCount and free if now zero */
 		if (--psDirEntry->ui32RefCount == 0)

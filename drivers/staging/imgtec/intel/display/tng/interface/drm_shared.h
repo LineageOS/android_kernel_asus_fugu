@@ -18,11 +18,11 @@
  * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
  *
  **************************************************************************/
+#include <powervr/mem_types.h>
 #include <img_types.h>
 
 #ifndef _DRM_SHARED_H_
 #define _DRM_SHARED_H_
-
 
 /* Controlling the kernel modesetting buffers */
 

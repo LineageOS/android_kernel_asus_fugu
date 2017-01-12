@@ -49,7 +49,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /*!
 ******************************************************************************
 
- @Function    RGXGPUFreqCalibratePrePowerState
+ @Function    RGXGPUFreqCalibratePrePowerOff
 
  @Description Manage GPU frequency and timer correlation data
               before a power off.
@@ -59,12 +59,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  @Return      void
 
 ******************************************************************************/
-void RGXGPUFreqCalibratePrePowerState(IMG_HANDLE hDevHandle);
+void RGXGPUFreqCalibratePrePowerOff(IMG_HANDLE hDevHandle);
 
 /*!
 ******************************************************************************
 
- @Function    RGXGPUFreqCalibratePostPowerState
+ @Function    RGXGPUFreqCalibratePostPowerOn
 
  @Description Manage GPU frequency and timer correlation data
               after a power on.
@@ -74,7 +74,7 @@ void RGXGPUFreqCalibratePrePowerState(IMG_HANDLE hDevHandle);
  @Return      void
 
 ******************************************************************************/
-void RGXGPUFreqCalibratePostPowerState(IMG_HANDLE hDevHandle);
+void RGXGPUFreqCalibratePostPowerOn(IMG_HANDLE hDevHandle);
 
 /*!
 ******************************************************************************

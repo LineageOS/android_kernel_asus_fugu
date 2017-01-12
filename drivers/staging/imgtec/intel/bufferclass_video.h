@@ -43,7 +43,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "img_defs.h"
 #include "bufferclass_interface.h"
-#include "imgpixfmts_km.h"
+#include <powervr/imgpixfmts.h>
+#include <powervr/mem_types.h>
 
 #if defined(__cplusplus)
 extern "C"
@@ -156,12 +157,12 @@ void *BCAllocKernelMem(unsigned long ulSize);
 void BCFreeKernelMem(void *pvMem);
 
 BCE_ERROR BCAllocDiscontigMemory(unsigned long ulSize,
-				 BCE_HANDLE unref__ * phMemHandle,
+				 BCE_HANDLE __maybe_unused * phMemHandle,
 				 IMG_CPU_VIRTADDR * pLinAddr,
 				 IMG_SYS_PHYADDR ** ppPhysAddr);
 
 void BCFreeDiscontigMemory(unsigned long ulSize,
-			   BCE_HANDLE unref__ hMemHandle,
+			   BCE_HANDLE __maybe_unused hMemHandle,
 			   IMG_CPU_VIRTADDR LinAddr,
 			   IMG_SYS_PHYADDR * pPhysAddr);
 

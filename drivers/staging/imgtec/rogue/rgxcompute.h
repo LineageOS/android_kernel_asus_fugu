@@ -49,6 +49,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgxfwutils.h"
 #include "rgx_fwif_resetframework.h"
 #include "rgxdebug.h"
+#include "pvr_notifier.h"
 
 #include "sync_server.h"
 #include "sync_internal.h"
@@ -79,6 +80,7 @@ PVRSRV_ERROR PVRSRVRGXCreateComputeContextKM(CONNECTION_DATA			*psConnection,
 											 IMG_UINT32					ui32FrameworkRegisterSize,
 											 IMG_PBYTE					pbyFrameworkRegisters,
 											 IMG_HANDLE					hMemCtxPrivData,
+											 IMG_DEV_VIRTADDR			sServicesSignalAddr,
 											 RGX_SERVER_COMPUTE_CONTEXT	**ppsComputeContext);
 
 /*! 
@@ -111,6 +113,7 @@ PVRSRV_ERROR PVRSRVRGXDestroyComputeContextKM(RGX_SERVER_COMPUTE_CONTEXT *psComp
 ******************************************************************************/
 IMG_EXPORT
 PVRSRV_ERROR PVRSRVRGXKickCDMKM(RGX_SERVER_COMPUTE_CONTEXT	*psComputeContext,
+								IMG_UINT32					ui32ClientCacheOpSeqNum,
 								IMG_UINT32					ui32ClientFenceCount,
 								SYNC_PRIMITIVE_BLOCK			**pauiClientFenceUFOSyncPrimBlock,
 								IMG_UINT32					*paui32ClientFenceSyncOffset,
@@ -122,11 +125,14 @@ PVRSRV_ERROR PVRSRVRGXKickCDMKM(RGX_SERVER_COMPUTE_CONTEXT	*psComputeContext,
 								IMG_UINT32					ui32ServerSyncPrims,
 								IMG_UINT32					*paui32ServerSyncFlags,
 								SERVER_SYNC_PRIMITIVE 		**pasServerSyncs,
+								IMG_INT32					i32CheckFenceFd,
+								IMG_INT32					i32UpdateTimelineFd,
+								IMG_INT32					*pi32UpdateFenceFd,
+								IMG_CHAR					pcszUpdateFenceName[32],
 								IMG_UINT32					ui32CmdSize,
 								IMG_PBYTE					pui8DMCmd,
-								IMG_BOOL					bPDumpContinuous,
-								IMG_UINT32					ui32ExtJobRef,
-								IMG_UINT32					ui32IntJobRef);
+								IMG_UINT32					ui32PDumpFlags,
+								IMG_UINT32					ui32ExtJobRef);
 
 /*!
 *******************************************************************************
@@ -141,6 +147,21 @@ PVRSRV_ERROR PVRSRVRGXKickCDMKM(RGX_SERVER_COMPUTE_CONTEXT	*psComputeContext,
 ******************************************************************************/
 IMG_EXPORT
 PVRSRV_ERROR PVRSRVRGXFlushComputeDataKM(RGX_SERVER_COMPUTE_CONTEXT *psComputeContext);
+
+/*!
+*******************************************************************************
+
+ @Function	    PVRSRVRGXNotifyComputeWriteOffsetUpdateKM
+ @Description   Server-side implementation of RGXNotifyComputeWriteOffsetUpdate
+
+ @Input         psDeviceNode - RGX Device node
+ @Input         psComputeContext - Compute context to flush
+
+ @Return   PVRSRV_ERROR
+
+******************************************************************************/
+IMG_EXPORT
+PVRSRV_ERROR PVRSRVRGXNotifyComputeWriteOffsetUpdateKM(RGX_SERVER_COMPUTE_CONTEXT *psComputeContext);
 
 PVRSRV_ERROR PVRSRVRGXSetComputeContextPriorityKM(CONNECTION_DATA *psConnection,
                                                   PVRSRV_DEVICE_NODE * psDeviceNode,
