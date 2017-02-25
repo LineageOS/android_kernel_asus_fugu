@@ -46,7 +46,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "img_defs.h"
 
-#include "sync.h"
 #include "sync_server.h"
 #include "pdump.h"
 
@@ -66,8 +65,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 
-
-
 /* ***************************************************************************
  * Server-side bridge entry points
  */
@@ -81,13 +78,13 @@ PVRSRVBridgeAllocSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 	SYNC_PRIMITIVE_BLOCK * psSyncHandleInt = NULL;
 	PMR * pshSyncPMRInt = NULL;
 
-
-
 	PVR_UNREFERENCED_PARAMETER(psAllocSyncPrimitiveBlockIN);
 
 
 	psAllocSyncPrimitiveBlockOUT->hSyncHandle = NULL;
 
+
+	PMRLock();
 
 
 	psAllocSyncPrimitiveBlockOUT->eError =
@@ -99,16 +96,13 @@ PVRSRVBridgeAllocSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psAllocSyncPrimitiveBlockOUT->eError != PVRSRV_OK)
 	{
+		PMRUnlock();
 		goto AllocSyncPrimitiveBlock_exit;
 	}
-
-
-
-
+	PMRUnlock();
 
 
 	psAllocSyncPrimitiveBlockOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
-
 							&psAllocSyncPrimitiveBlockOUT->hSyncHandle,
 							(void *) psSyncHandleInt,
 							PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK,
@@ -120,12 +114,7 @@ PVRSRVBridgeAllocSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 	}
 
 
-
-
-
-
 	psAllocSyncPrimitiveBlockOUT->eError = PVRSRVAllocSubHandle(psConnection->psHandleBase,
-
 							&psAllocSyncPrimitiveBlockOUT->hhSyncPMR,
 							(void *) pshSyncPMRInt,
 							PVRSRV_HANDLE_TYPE_PMR_LOCAL_EXPORT_HANDLE,
@@ -140,25 +129,15 @@ PVRSRVBridgeAllocSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 
 
 AllocSyncPrimitiveBlock_exit:
-
-
 	if (psAllocSyncPrimitiveBlockOUT->eError != PVRSRV_OK)
 	{
 		if (psAllocSyncPrimitiveBlockOUT->hSyncHandle)
 		{
-
-
 			PVRSRV_ERROR eError = PVRSRVReleaseHandle(psConnection->psHandleBase,
 						(IMG_HANDLE) psAllocSyncPrimitiveBlockOUT->hSyncHandle,
 						PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
-			if ((eError != PVRSRV_OK) && (eError != PVRSRV_ERROR_RETRY))
-			{
-				PVR_DPF((PVR_DBG_ERROR,
-				        "PVRSRVBridgeAllocSyncPrimitiveBlock: %s",
-				        PVRSRVGetErrorStringKM(eError)));
-			}
-			/* Releasing the handle should free/destroy/release the resource.
-			 * This should never fail... */
+
+			/* Releasing the handle should free/destroy/release the resource. This should never fail... */
 			PVR_ASSERT((eError == PVRSRV_OK) || (eError == PVRSRV_ERROR_RETRY));
 
 			/* Avoid freeing/destroying/releasing the resource a second time below */
@@ -176,7 +155,6 @@ AllocSyncPrimitiveBlock_exit:
 	return 0;
 }
 
-
 static IMG_INT
 PVRSRVBridgeFreeSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_IN_FREESYNCPRIMITIVEBLOCK *psFreeSyncPrimitiveBlockIN,
@@ -188,11 +166,7 @@ PVRSRVBridgeFreeSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
-
-
-
-
+	PMRLock();
 
 
 
@@ -201,26 +175,20 @@ PVRSRVBridgeFreeSyncPrimitiveBlock(IMG_UINT32 ui32DispatchTableEntry,
 		PVRSRVReleaseHandle(psConnection->psHandleBase,
 					(IMG_HANDLE) psFreeSyncPrimitiveBlockIN->hSyncHandle,
 					PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
-	if ((psFreeSyncPrimitiveBlockOUT->eError != PVRSRV_OK) &&
-	    (psFreeSyncPrimitiveBlockOUT->eError != PVRSRV_ERROR_RETRY))
+	if ((psFreeSyncPrimitiveBlockOUT->eError != PVRSRV_OK) && (psFreeSyncPrimitiveBlockOUT->eError != PVRSRV_ERROR_RETRY))
 	{
-		PVR_DPF((PVR_DBG_ERROR,
-		        "PVRSRVBridgeFreeSyncPrimitiveBlock: %s",
-		        PVRSRVGetErrorStringKM(psFreeSyncPrimitiveBlockOUT->eError)));
 		PVR_ASSERT(0);
+		PMRUnlock();
 		goto FreeSyncPrimitiveBlock_exit;
 	}
 
-
+	PMRUnlock();
 
 
 FreeSyncPrimitiveBlock_exit:
 
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeSyncPrimSet(IMG_UINT32 ui32DispatchTableEntry,
@@ -228,13 +196,7 @@ PVRSRVBridgeSyncPrimSet(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_SYNCPRIMSET *psSyncPrimSetOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hSyncHandle = psSyncPrimSetIN->hSyncHandle;
 	SYNC_PRIMITIVE_BLOCK * psSyncHandleInt = NULL;
-
-
-
-
-
 
 
 
@@ -247,14 +209,14 @@ PVRSRVBridgeSyncPrimSet(IMG_UINT32 ui32DispatchTableEntry,
 					psSyncPrimSetOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSyncHandleInt,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK,
-											IMG_TRUE);
+											psSyncPrimSetIN->hSyncHandle,
+											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psSyncPrimSetOUT->eError != PVRSRV_OK)
 					{
 						goto SyncPrimSet_exit;
 					}
 				}
+
 
 	psSyncPrimSetOUT->eError =
 		PVRSRVSyncPrimSetKM(
@@ -267,25 +229,8 @@ PVRSRVBridgeSyncPrimSet(IMG_UINT32 ui32DispatchTableEntry,
 
 SyncPrimSet_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psSyncHandleInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
-						}
-				}
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeServerSyncPrimSet(IMG_UINT32 ui32DispatchTableEntry,
@@ -293,13 +238,7 @@ PVRSRVBridgeServerSyncPrimSet(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_SERVERSYNCPRIMSET *psServerSyncPrimSetOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hSyncHandle = psServerSyncPrimSetIN->hSyncHandle;
 	SERVER_SYNC_PRIMITIVE * psSyncHandleInt = NULL;
-
-
-
-
-
 
 
 
@@ -312,14 +251,14 @@ PVRSRVBridgeServerSyncPrimSet(IMG_UINT32 ui32DispatchTableEntry,
 					psServerSyncPrimSetOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSyncHandleInt,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE,
-											IMG_TRUE);
+											psServerSyncPrimSetIN->hSyncHandle,
+											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
 					if(psServerSyncPrimSetOUT->eError != PVRSRV_OK)
 					{
 						goto ServerSyncPrimSet_exit;
 					}
 				}
+
 
 	psServerSyncPrimSetOUT->eError =
 		PVRSRVServerSyncPrimSetKM(
@@ -331,25 +270,135 @@ PVRSRVBridgeServerSyncPrimSet(IMG_UINT32 ui32DispatchTableEntry,
 
 ServerSyncPrimSet_exit:
 
+	return 0;
+}
+
+static IMG_INT
+PVRSRVBridgeSyncRecordRemoveByHandle(IMG_UINT32 ui32DispatchTableEntry,
+					  PVRSRV_BRIDGE_IN_SYNCRECORDREMOVEBYHANDLE *psSyncRecordRemoveByHandleIN,
+					  PVRSRV_BRIDGE_OUT_SYNCRECORDREMOVEBYHANDLE *psSyncRecordRemoveByHandleOUT,
+					 CONNECTION_DATA *psConnection)
+{
 
 
 
 
 
-				{
-					/* Unreference the previously looked up handle */
-						if(psSyncHandleInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
-						}
-				}
 
+
+
+
+	psSyncRecordRemoveByHandleOUT->eError =
+		PVRSRVReleaseHandle(psConnection->psHandleBase,
+					(IMG_HANDLE) psSyncRecordRemoveByHandleIN->hhRecord,
+					PVRSRV_HANDLE_TYPE_SYNC_RECORD_HANDLE);
+	if ((psSyncRecordRemoveByHandleOUT->eError != PVRSRV_OK) && (psSyncRecordRemoveByHandleOUT->eError != PVRSRV_ERROR_RETRY))
+	{
+		PVR_ASSERT(0);
+		goto SyncRecordRemoveByHandle_exit;
+	}
+
+
+
+SyncRecordRemoveByHandle_exit:
 
 	return 0;
 }
 
+static IMG_INT
+PVRSRVBridgeSyncRecordAdd(IMG_UINT32 ui32DispatchTableEntry,
+					  PVRSRV_BRIDGE_IN_SYNCRECORDADD *psSyncRecordAddIN,
+					  PVRSRV_BRIDGE_OUT_SYNCRECORDADD *psSyncRecordAddOUT,
+					 CONNECTION_DATA *psConnection)
+{
+	SYNC_RECORD_HANDLE pshRecordInt = NULL;
+	SYNC_PRIMITIVE_BLOCK * pshServerSyncPrimBlockInt = NULL;
+	IMG_CHAR *uiClassNameInt = NULL;
+
+
+
+
+	if (psSyncRecordAddIN->ui32ClassNameSize != 0)
+	{
+		uiClassNameInt = OSAllocMemNoStats(psSyncRecordAddIN->ui32ClassNameSize * sizeof(IMG_CHAR));
+		if (!uiClassNameInt)
+		{
+			psSyncRecordAddOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto SyncRecordAdd_exit;
+		}
+	}
+
+			/* Copy the data over */
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncRecordAddIN->puiClassName, psSyncRecordAddIN->ui32ClassNameSize * sizeof(IMG_CHAR))
+				|| (OSCopyFromUser(NULL, uiClassNameInt, psSyncRecordAddIN->puiClassName,
+				psSyncRecordAddIN->ui32ClassNameSize * sizeof(IMG_CHAR)) != PVRSRV_OK) )
+			{
+				psSyncRecordAddOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+
+				goto SyncRecordAdd_exit;
+			}
+
+
+
+				{
+					/* Look up the address from the handle */
+					psSyncRecordAddOUT->eError =
+						PVRSRVLookupHandle(psConnection->psHandleBase,
+											(void **) &pshServerSyncPrimBlockInt,
+											psSyncRecordAddIN->hhServerSyncPrimBlock,
+											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
+					if(psSyncRecordAddOUT->eError != PVRSRV_OK)
+					{
+						goto SyncRecordAdd_exit;
+					}
+				}
+
+
+	psSyncRecordAddOUT->eError =
+		PVRSRVSyncRecordAddKM(
+					&pshRecordInt,
+					pshServerSyncPrimBlockInt,
+					psSyncRecordAddIN->ui32ui32FwBlockAddr,
+					psSyncRecordAddIN->ui32ui32SyncOffset,
+					psSyncRecordAddIN->bbServerSync,
+					psSyncRecordAddIN->ui32ClassNameSize,
+					uiClassNameInt);
+	/* Exit early if bridged call fails */
+	if(psSyncRecordAddOUT->eError != PVRSRV_OK)
+	{
+		goto SyncRecordAdd_exit;
+	}
+
+
+	psSyncRecordAddOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
+							&psSyncRecordAddOUT->hhRecord,
+							(void *) pshRecordInt,
+							PVRSRV_HANDLE_TYPE_SYNC_RECORD_HANDLE,
+							PVRSRV_HANDLE_ALLOC_FLAG_NONE
+							,(PFN_HANDLE_RELEASE)&PVRSRVSyncRecordRemoveByHandleKM);
+	if (psSyncRecordAddOUT->eError != PVRSRV_OK)
+	{
+		goto SyncRecordAdd_exit;
+	}
+
+
+
+
+SyncRecordAdd_exit:
+	if (psSyncRecordAddOUT->eError != PVRSRV_OK)
+	{
+		if (pshRecordInt)
+		{
+			PVRSRVSyncRecordRemoveByHandleKM(pshRecordInt);
+		}
+	}
+
+	if (uiClassNameInt)
+		OSFreeMemNoStats(uiClassNameInt);
+
+	return 0;
+}
 
 static IMG_INT
 PVRSRVBridgeServerSyncAlloc(IMG_UINT32 ui32DispatchTableEntry,
@@ -360,46 +409,33 @@ PVRSRVBridgeServerSyncAlloc(IMG_UINT32 ui32DispatchTableEntry,
 	SERVER_SYNC_PRIMITIVE * psSyncHandleInt = NULL;
 	IMG_CHAR *uiClassNameInt = NULL;
 
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(psServerSyncAllocIN->ui32ClassNameSize * sizeof(IMG_CHAR)) +
-			0;
 
 
 
-
-
-	if (ui32BufferSize != 0)
+	if (psServerSyncAllocIN->ui32ClassNameSize != 0)
 	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
+		uiClassNameInt = OSAllocMemNoStats(psServerSyncAllocIN->ui32ClassNameSize * sizeof(IMG_CHAR));
+		if (!uiClassNameInt)
 		{
 			psServerSyncAllocOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
 			goto ServerSyncAlloc_exit;
 		}
 	}
 
-	if (psServerSyncAllocIN->ui32ClassNameSize != 0)
-	{
-		uiClassNameInt = (IMG_CHAR*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psServerSyncAllocIN->ui32ClassNameSize * sizeof(IMG_CHAR);
-	}
-
 			/* Copy the data over */
-			if (psServerSyncAllocIN->ui32ClassNameSize * sizeof(IMG_CHAR) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psServerSyncAllocIN->puiClassName, psServerSyncAllocIN->ui32ClassNameSize * sizeof(IMG_CHAR))
+				|| (OSCopyFromUser(NULL, uiClassNameInt, psServerSyncAllocIN->puiClassName,
+				psServerSyncAllocIN->ui32ClassNameSize * sizeof(IMG_CHAR)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psServerSyncAllocIN->puiClassName, psServerSyncAllocIN->ui32ClassNameSize * sizeof(IMG_CHAR))
-					|| (OSCopyFromUser(NULL, uiClassNameInt, psServerSyncAllocIN->puiClassName,
-					psServerSyncAllocIN->ui32ClassNameSize * sizeof(IMG_CHAR)) != PVRSRV_OK) )
-				{
-					psServerSyncAllocOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psServerSyncAllocOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto ServerSyncAlloc_exit;
-				}
+				goto ServerSyncAlloc_exit;
 			}
+
+#if defined(PDUMP)
+	PMRLock();
+#endif
 
 
 	psServerSyncAllocOUT->eError =
@@ -411,16 +447,17 @@ PVRSRVBridgeServerSyncAlloc(IMG_UINT32 ui32DispatchTableEntry,
 	/* Exit early if bridged call fails */
 	if(psServerSyncAllocOUT->eError != PVRSRV_OK)
 	{
+#if defined(PDUMP)
+		PMRUnlock();
+#endif
 		goto ServerSyncAlloc_exit;
 	}
-
-
-
-
+#if defined(PDUMP)
+	PMRUnlock();
+#endif
 
 
 	psServerSyncAllocOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
-
 							&psServerSyncAllocOUT->hSyncHandle,
 							(void *) psSyncHandleInt,
 							PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE,
@@ -435,8 +472,6 @@ PVRSRVBridgeServerSyncAlloc(IMG_UINT32 ui32DispatchTableEntry,
 
 
 ServerSyncAlloc_exit:
-
-
 	if (psServerSyncAllocOUT->eError != PVRSRV_OK)
 	{
 		if (psSyncHandleInt)
@@ -445,16 +480,11 @@ ServerSyncAlloc_exit:
 		}
 	}
 
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
+	if (uiClassNameInt)
+		OSFreeMemNoStats(uiClassNameInt);
 
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeServerSyncFree(IMG_UINT32 ui32DispatchTableEntry,
@@ -471,35 +501,22 @@ PVRSRVBridgeServerSyncFree(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
-
-
-
-
 	psServerSyncFreeOUT->eError =
 		PVRSRVReleaseHandle(psConnection->psHandleBase,
 					(IMG_HANDLE) psServerSyncFreeIN->hSyncHandle,
 					PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
-	if ((psServerSyncFreeOUT->eError != PVRSRV_OK) &&
-	    (psServerSyncFreeOUT->eError != PVRSRV_ERROR_RETRY))
+	if ((psServerSyncFreeOUT->eError != PVRSRV_OK) && (psServerSyncFreeOUT->eError != PVRSRV_ERROR_RETRY))
 	{
-		PVR_DPF((PVR_DBG_ERROR,
-		        "PVRSRVBridgeServerSyncFree: %s",
-		        PVRSRVGetErrorStringKM(psServerSyncFreeOUT->eError)));
 		PVR_ASSERT(0);
 		goto ServerSyncFree_exit;
 	}
 
 
 
-
 ServerSyncFree_exit:
-
-
 
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeServerSyncQueueHWOp(IMG_UINT32 ui32DispatchTableEntry,
@@ -507,18 +524,15 @@ PVRSRVBridgeServerSyncQueueHWOp(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_SERVERSYNCQUEUEHWOP *psServerSyncQueueHWOpOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hSyncHandle = psServerSyncQueueHWOpIN->hSyncHandle;
 	SERVER_SYNC_PRIMITIVE * psSyncHandleInt = NULL;
 
 
 
 
 
-
-
-
-
-
+#if defined(PDUMP)
+	PMRLock();
+#endif
 
 
 				{
@@ -526,14 +540,17 @@ PVRSRVBridgeServerSyncQueueHWOp(IMG_UINT32 ui32DispatchTableEntry,
 					psServerSyncQueueHWOpOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSyncHandleInt,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE,
-											IMG_TRUE);
+											psServerSyncQueueHWOpIN->hSyncHandle,
+											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
 					if(psServerSyncQueueHWOpOUT->eError != PVRSRV_OK)
 					{
+#if defined(PDUMP)
+						PMRUnlock();
+#endif
 						goto ServerSyncQueueHWOp_exit;
 					}
 				}
+
 
 	psServerSyncQueueHWOpOUT->eError =
 		PVRSRVServerSyncQueueHWOpKM(
@@ -541,31 +558,17 @@ PVRSRVBridgeServerSyncQueueHWOp(IMG_UINT32 ui32DispatchTableEntry,
 					psServerSyncQueueHWOpIN->bbUpdate,
 					&psServerSyncQueueHWOpOUT->ui32FenceValue,
 					&psServerSyncQueueHWOpOUT->ui32UpdateValue);
+#if defined(PDUMP)
+	PMRUnlock();
+#endif
 
 
 
 
 ServerSyncQueueHWOp_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psSyncHandleInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
-						}
-				}
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeServerSyncGetStatus(IMG_UINT32 ui32DispatchTableEntry,
@@ -580,19 +583,6 @@ PVRSRVBridgeServerSyncGetStatus(IMG_UINT32 ui32DispatchTableEntry,
 	IMG_UINT32 *pui32CurrentOpInt = NULL;
 	IMG_UINT32 *pui32NextOpInt = NULL;
 
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(psServerSyncGetStatusIN->ui32SyncCount * sizeof(SERVER_SYNC_PRIMITIVE *)) +
-			(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_HANDLE)) +
-			(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)) +
-			(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)) +
-			(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)) +
-			(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)) +
-			0;
-
-
 
 	psServerSyncGetStatusOUT->pui32UID = psServerSyncGetStatusIN->pui32UID;
 	psServerSyncGetStatusOUT->pui32FWAddr = psServerSyncGetStatusIN->pui32FWAddr;
@@ -600,63 +590,76 @@ PVRSRVBridgeServerSyncGetStatus(IMG_UINT32 ui32DispatchTableEntry,
 	psServerSyncGetStatusOUT->pui32NextOp = psServerSyncGetStatusIN->pui32NextOp;
 
 
-	if (ui32BufferSize != 0)
+	if (psServerSyncGetStatusIN->ui32SyncCount != 0)
 	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
+		psSyncHandleInt = OSAllocMemNoStats(psServerSyncGetStatusIN->ui32SyncCount * sizeof(SERVER_SYNC_PRIMITIVE *));
+		if (!psSyncHandleInt)
 		{
 			psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto ServerSyncGetStatus_exit;
+		}
+		hSyncHandleInt2 = OSAllocMemNoStats(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_HANDLE));
+		if (!hSyncHandleInt2)
+		{
+			psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto ServerSyncGetStatus_exit;
+		}
+	}
+
+			/* Copy the data over */
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psServerSyncGetStatusIN->phSyncHandle, psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_HANDLE))
+				|| (OSCopyFromUser(NULL, hSyncHandleInt2, psServerSyncGetStatusIN->phSyncHandle,
+				psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_HANDLE)) != PVRSRV_OK) )
+			{
+				psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+
+				goto ServerSyncGetStatus_exit;
+			}
+	if (psServerSyncGetStatusIN->ui32SyncCount != 0)
+	{
+		pui32UIDInt = OSAllocMemNoStats(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32));
+		if (!pui32UIDInt)
+		{
+			psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
 			goto ServerSyncGetStatus_exit;
 		}
 	}
 
 	if (psServerSyncGetStatusIN->ui32SyncCount != 0)
 	{
-		psSyncHandleInt = (SERVER_SYNC_PRIMITIVE **)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psServerSyncGetStatusIN->ui32SyncCount * sizeof(SERVER_SYNC_PRIMITIVE *);
-		hSyncHandleInt2 = (IMG_HANDLE *)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset); 
-		ui32NextOffset += psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_HANDLE);
-	}
-
-			/* Copy the data over */
-			if (psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_HANDLE) > 0)
-			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psServerSyncGetStatusIN->phSyncHandle, psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_HANDLE))
-					|| (OSCopyFromUser(NULL, hSyncHandleInt2, psServerSyncGetStatusIN->phSyncHandle,
-					psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_HANDLE)) != PVRSRV_OK) )
-				{
-					psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
-
-					goto ServerSyncGetStatus_exit;
-				}
-			}
-	if (psServerSyncGetStatusIN->ui32SyncCount != 0)
-	{
-		pui32UIDInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32);
+		pui32FWAddrInt = OSAllocMemNoStats(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32));
+		if (!pui32FWAddrInt)
+		{
+			psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto ServerSyncGetStatus_exit;
+		}
 	}
 
 	if (psServerSyncGetStatusIN->ui32SyncCount != 0)
 	{
-		pui32FWAddrInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32);
+		pui32CurrentOpInt = OSAllocMemNoStats(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32));
+		if (!pui32CurrentOpInt)
+		{
+			psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto ServerSyncGetStatus_exit;
+		}
 	}
 
 	if (psServerSyncGetStatusIN->ui32SyncCount != 0)
 	{
-		pui32CurrentOpInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32);
+		pui32NextOpInt = OSAllocMemNoStats(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32));
+		if (!pui32NextOpInt)
+		{
+			psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto ServerSyncGetStatus_exit;
+		}
 	}
-
-	if (psServerSyncGetStatusIN->ui32SyncCount != 0)
-	{
-		pui32NextOpInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32);
-	}
-
-
-
 
 
 
@@ -672,13 +675,13 @@ PVRSRVBridgeServerSyncGetStatus(IMG_UINT32 ui32DispatchTableEntry,
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSyncHandleInt[i],
 											hSyncHandleInt2[i],
-											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE,
-											IMG_TRUE);
+											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
 					if(psServerSyncGetStatusOUT->eError != PVRSRV_OK)
 					{
 						goto ServerSyncGetStatus_exit;
 					}
 				}
+
 		}
 	}
 
@@ -693,89 +696,59 @@ PVRSRVBridgeServerSyncGetStatus(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-	if ((psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)) > 0)
+	if ( !OSAccessOK(PVR_VERIFY_WRITE, (void*) psServerSyncGetStatusOUT->pui32UID, (psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)))
+		|| (OSCopyToUser(NULL, psServerSyncGetStatusOUT->pui32UID, pui32UIDInt,
+		(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32))) != PVRSRV_OK) )
 	{
-		if ( !OSAccessOK(PVR_VERIFY_WRITE, (void*) psServerSyncGetStatusOUT->pui32UID, (psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)))
-			|| (OSCopyToUser(NULL, psServerSyncGetStatusOUT->pui32UID, pui32UIDInt,
-			(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32))) != PVRSRV_OK) )
-		{
-			psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+		psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-			goto ServerSyncGetStatus_exit;
-		}
+		goto ServerSyncGetStatus_exit;
 	}
 
-	if ((psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)) > 0)
+	if ( !OSAccessOK(PVR_VERIFY_WRITE, (void*) psServerSyncGetStatusOUT->pui32FWAddr, (psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)))
+		|| (OSCopyToUser(NULL, psServerSyncGetStatusOUT->pui32FWAddr, pui32FWAddrInt,
+		(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32))) != PVRSRV_OK) )
 	{
-		if ( !OSAccessOK(PVR_VERIFY_WRITE, (void*) psServerSyncGetStatusOUT->pui32FWAddr, (psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)))
-			|| (OSCopyToUser(NULL, psServerSyncGetStatusOUT->pui32FWAddr, pui32FWAddrInt,
-			(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32))) != PVRSRV_OK) )
-		{
-			psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+		psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-			goto ServerSyncGetStatus_exit;
-		}
+		goto ServerSyncGetStatus_exit;
 	}
 
-	if ((psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)) > 0)
+	if ( !OSAccessOK(PVR_VERIFY_WRITE, (void*) psServerSyncGetStatusOUT->pui32CurrentOp, (psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)))
+		|| (OSCopyToUser(NULL, psServerSyncGetStatusOUT->pui32CurrentOp, pui32CurrentOpInt,
+		(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32))) != PVRSRV_OK) )
 	{
-		if ( !OSAccessOK(PVR_VERIFY_WRITE, (void*) psServerSyncGetStatusOUT->pui32CurrentOp, (psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)))
-			|| (OSCopyToUser(NULL, psServerSyncGetStatusOUT->pui32CurrentOp, pui32CurrentOpInt,
-			(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32))) != PVRSRV_OK) )
-		{
-			psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+		psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-			goto ServerSyncGetStatus_exit;
-		}
+		goto ServerSyncGetStatus_exit;
 	}
 
-	if ((psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)) > 0)
+	if ( !OSAccessOK(PVR_VERIFY_WRITE, (void*) psServerSyncGetStatusOUT->pui32NextOp, (psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)))
+		|| (OSCopyToUser(NULL, psServerSyncGetStatusOUT->pui32NextOp, pui32NextOpInt,
+		(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32))) != PVRSRV_OK) )
 	{
-		if ( !OSAccessOK(PVR_VERIFY_WRITE, (void*) psServerSyncGetStatusOUT->pui32NextOp, (psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32)))
-			|| (OSCopyToUser(NULL, psServerSyncGetStatusOUT->pui32NextOp, pui32NextOpInt,
-			(psServerSyncGetStatusIN->ui32SyncCount * sizeof(IMG_UINT32))) != PVRSRV_OK) )
-		{
-			psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+		psServerSyncGetStatusOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-			goto ServerSyncGetStatus_exit;
-		}
+		goto ServerSyncGetStatus_exit;
 	}
 
 
 ServerSyncGetStatus_exit:
-
-
-
-
-
-
-	{
-		IMG_UINT32 i;
-
-		for (i=0;i<psServerSyncGetStatusIN->ui32SyncCount;i++)
-		{
-				{
-					/* Unreference the previously looked up handle */
-						if(psSyncHandleInt[i])
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hSyncHandleInt2[i],
-											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
-						}
-				}
-		}
-	}
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
+	if (psSyncHandleInt)
+		OSFreeMemNoStats(psSyncHandleInt);
+	if (hSyncHandleInt2)
+		OSFreeMemNoStats(hSyncHandleInt2);
+	if (pui32UIDInt)
+		OSFreeMemNoStats(pui32UIDInt);
+	if (pui32FWAddrInt)
+		OSFreeMemNoStats(pui32FWAddrInt);
+	if (pui32CurrentOpInt)
+		OSFreeMemNoStats(pui32CurrentOpInt);
+	if (pui32NextOpInt)
+		OSFreeMemNoStats(pui32NextOpInt);
 
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeSyncPrimOpCreate(IMG_UINT32 ui32DispatchTableEntry,
@@ -791,112 +764,103 @@ PVRSRVBridgeSyncPrimOpCreate(IMG_UINT32 ui32DispatchTableEntry,
 	IMG_HANDLE *hServerSyncInt2 = NULL;
 	SERVER_OP_COOKIE * psServerCookieInt = NULL;
 
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(SYNC_PRIMITIVE_BLOCK *)) +
-			(psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(IMG_HANDLE)) +
-			(psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) +
-			(psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) +
-			(psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(SERVER_SYNC_PRIMITIVE *)) +
-			(psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(IMG_HANDLE)) +
-			0;
 
 
 
-
-
-	if (ui32BufferSize != 0)
+	if (psSyncPrimOpCreateIN->ui32SyncBlockCount != 0)
 	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
+		psBlockListInt = OSAllocMemNoStats(psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(SYNC_PRIMITIVE_BLOCK *));
+		if (!psBlockListInt)
 		{
 			psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto SyncPrimOpCreate_exit;
+		}
+		hBlockListInt2 = OSAllocMemNoStats(psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(IMG_HANDLE));
+		if (!hBlockListInt2)
+		{
+			psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
 			goto SyncPrimOpCreate_exit;
 		}
 	}
 
-	if (psSyncPrimOpCreateIN->ui32SyncBlockCount != 0)
-	{
-		psBlockListInt = (SYNC_PRIMITIVE_BLOCK **)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(SYNC_PRIMITIVE_BLOCK *);
-		hBlockListInt2 = (IMG_HANDLE *)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset); 
-		ui32NextOffset += psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(IMG_HANDLE);
-	}
-
 			/* Copy the data over */
-			if (psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(IMG_HANDLE) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpCreateIN->phBlockList, psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(IMG_HANDLE))
+				|| (OSCopyFromUser(NULL, hBlockListInt2, psSyncPrimOpCreateIN->phBlockList,
+				psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(IMG_HANDLE)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpCreateIN->phBlockList, psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(IMG_HANDLE))
-					|| (OSCopyFromUser(NULL, hBlockListInt2, psSyncPrimOpCreateIN->phBlockList,
-					psSyncPrimOpCreateIN->ui32SyncBlockCount * sizeof(IMG_HANDLE)) != PVRSRV_OK) )
-				{
-					psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto SyncPrimOpCreate_exit;
-				}
+				goto SyncPrimOpCreate_exit;
 			}
 	if (psSyncPrimOpCreateIN->ui32ClientSyncCount != 0)
 	{
-		ui32SyncBlockIndexInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32);
+		ui32SyncBlockIndexInt = OSAllocMemNoStats(psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32));
+		if (!ui32SyncBlockIndexInt)
+		{
+			psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto SyncPrimOpCreate_exit;
+		}
 	}
 
 			/* Copy the data over */
-			if (psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpCreateIN->pui32SyncBlockIndex, psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32))
+				|| (OSCopyFromUser(NULL, ui32SyncBlockIndexInt, psSyncPrimOpCreateIN->pui32SyncBlockIndex,
+				psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpCreateIN->pui32SyncBlockIndex, psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32))
-					|| (OSCopyFromUser(NULL, ui32SyncBlockIndexInt, psSyncPrimOpCreateIN->pui32SyncBlockIndex,
-					psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
-				{
-					psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto SyncPrimOpCreate_exit;
-				}
+				goto SyncPrimOpCreate_exit;
 			}
 	if (psSyncPrimOpCreateIN->ui32ClientSyncCount != 0)
 	{
-		ui32IndexInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32);
+		ui32IndexInt = OSAllocMemNoStats(psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32));
+		if (!ui32IndexInt)
+		{
+			psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto SyncPrimOpCreate_exit;
+		}
 	}
 
 			/* Copy the data over */
-			if (psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpCreateIN->pui32Index, psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32))
+				|| (OSCopyFromUser(NULL, ui32IndexInt, psSyncPrimOpCreateIN->pui32Index,
+				psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpCreateIN->pui32Index, psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32))
-					|| (OSCopyFromUser(NULL, ui32IndexInt, psSyncPrimOpCreateIN->pui32Index,
-					psSyncPrimOpCreateIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
-				{
-					psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto SyncPrimOpCreate_exit;
-				}
+				goto SyncPrimOpCreate_exit;
 			}
 	if (psSyncPrimOpCreateIN->ui32ServerSyncCount != 0)
 	{
-		psServerSyncInt = (SERVER_SYNC_PRIMITIVE **)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(SERVER_SYNC_PRIMITIVE *);
-		hServerSyncInt2 = (IMG_HANDLE *)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset); 
-		ui32NextOffset += psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(IMG_HANDLE);
+		psServerSyncInt = OSAllocMemNoStats(psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(SERVER_SYNC_PRIMITIVE *));
+		if (!psServerSyncInt)
+		{
+			psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto SyncPrimOpCreate_exit;
+		}
+		hServerSyncInt2 = OSAllocMemNoStats(psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(IMG_HANDLE));
+		if (!hServerSyncInt2)
+		{
+			psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto SyncPrimOpCreate_exit;
+		}
 	}
 
 			/* Copy the data over */
-			if (psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(IMG_HANDLE) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpCreateIN->phServerSync, psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(IMG_HANDLE))
+				|| (OSCopyFromUser(NULL, hServerSyncInt2, psSyncPrimOpCreateIN->phServerSync,
+				psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(IMG_HANDLE)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpCreateIN->phServerSync, psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(IMG_HANDLE))
-					|| (OSCopyFromUser(NULL, hServerSyncInt2, psSyncPrimOpCreateIN->phServerSync,
-					psSyncPrimOpCreateIN->ui32ServerSyncCount * sizeof(IMG_HANDLE)) != PVRSRV_OK) )
-				{
-					psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psSyncPrimOpCreateOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto SyncPrimOpCreate_exit;
-				}
+				goto SyncPrimOpCreate_exit;
 			}
-
-
-
 
 
 
@@ -911,19 +875,15 @@ PVRSRVBridgeSyncPrimOpCreate(IMG_UINT32 ui32DispatchTableEntry,
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psBlockListInt[i],
 											hBlockListInt2[i],
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK,
-											IMG_TRUE);
+											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psSyncPrimOpCreateOUT->eError != PVRSRV_OK)
 					{
 						goto SyncPrimOpCreate_exit;
 					}
 				}
+
 		}
 	}
-
-
-
-
 
 	{
 		IMG_UINT32 i;
@@ -936,13 +896,13 @@ PVRSRVBridgeSyncPrimOpCreate(IMG_UINT32 ui32DispatchTableEntry,
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psServerSyncInt[i],
 											hServerSyncInt2[i],
-											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE,
-											IMG_TRUE);
+											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
 					if(psSyncPrimOpCreateOUT->eError != PVRSRV_OK)
 					{
 						goto SyncPrimOpCreate_exit;
 					}
 				}
+
 		}
 	}
 
@@ -963,12 +923,7 @@ PVRSRVBridgeSyncPrimOpCreate(IMG_UINT32 ui32DispatchTableEntry,
 	}
 
 
-
-
-
-
 	psSyncPrimOpCreateOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
-
 							&psSyncPrimOpCreateOUT->hServerCookie,
 							(void *) psServerCookieInt,
 							PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE,
@@ -983,50 +938,6 @@ PVRSRVBridgeSyncPrimOpCreate(IMG_UINT32 ui32DispatchTableEntry,
 
 
 SyncPrimOpCreate_exit:
-
-
-
-
-
-
-	{
-		IMG_UINT32 i;
-
-		for (i=0;i<psSyncPrimOpCreateIN->ui32SyncBlockCount;i++)
-		{
-				{
-					/* Unreference the previously looked up handle */
-						if(psBlockListInt[i])
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hBlockListInt2[i],
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
-						}
-				}
-		}
-	}
-
-
-
-
-
-	{
-		IMG_UINT32 i;
-
-		for (i=0;i<psSyncPrimOpCreateIN->ui32ServerSyncCount;i++)
-		{
-				{
-					/* Unreference the previously looked up handle */
-						if(psServerSyncInt[i])
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hServerSyncInt2[i],
-											PVRSRV_HANDLE_TYPE_SERVER_SYNC_PRIMITIVE);
-						}
-				}
-		}
-	}
-
 	if (psSyncPrimOpCreateOUT->eError != PVRSRV_OK)
 	{
 		if (psServerCookieInt)
@@ -1035,16 +946,21 @@ SyncPrimOpCreate_exit:
 		}
 	}
 
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
+	if (psBlockListInt)
+		OSFreeMemNoStats(psBlockListInt);
+	if (hBlockListInt2)
+		OSFreeMemNoStats(hBlockListInt2);
+	if (ui32SyncBlockIndexInt)
+		OSFreeMemNoStats(ui32SyncBlockIndexInt);
+	if (ui32IndexInt)
+		OSFreeMemNoStats(ui32IndexInt);
+	if (psServerSyncInt)
+		OSFreeMemNoStats(psServerSyncInt);
+	if (hServerSyncInt2)
+		OSFreeMemNoStats(hServerSyncInt2);
 
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeSyncPrimOpTake(IMG_UINT32 ui32DispatchTableEntry,
@@ -1052,113 +968,95 @@ PVRSRVBridgeSyncPrimOpTake(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_SYNCPRIMOPTAKE *psSyncPrimOpTakeOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hServerCookie = psSyncPrimOpTakeIN->hServerCookie;
 	SERVER_OP_COOKIE * psServerCookieInt = NULL;
 	IMG_UINT32 *ui32FlagsInt = NULL;
 	IMG_UINT32 *ui32FenceValueInt = NULL;
 	IMG_UINT32 *ui32UpdateValueInt = NULL;
 	IMG_UINT32 *ui32ServerFlagsInt = NULL;
 
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) +
-			(psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) +
-			(psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) +
-			(psSyncPrimOpTakeIN->ui32ServerSyncCount * sizeof(IMG_UINT32)) +
-			0;
 
 
 
-
-
-	if (ui32BufferSize != 0)
+	if (psSyncPrimOpTakeIN->ui32ClientSyncCount != 0)
 	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
+		ui32FlagsInt = OSAllocMemNoStats(psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32));
+		if (!ui32FlagsInt)
 		{
 			psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
 			goto SyncPrimOpTake_exit;
 		}
 	}
 
-	if (psSyncPrimOpTakeIN->ui32ClientSyncCount != 0)
-	{
-		ui32FlagsInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32);
-	}
-
 			/* Copy the data over */
-			if (psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpTakeIN->pui32Flags, psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32))
+				|| (OSCopyFromUser(NULL, ui32FlagsInt, psSyncPrimOpTakeIN->pui32Flags,
+				psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpTakeIN->pui32Flags, psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32))
-					|| (OSCopyFromUser(NULL, ui32FlagsInt, psSyncPrimOpTakeIN->pui32Flags,
-					psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
-				{
-					psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto SyncPrimOpTake_exit;
-				}
+				goto SyncPrimOpTake_exit;
 			}
 	if (psSyncPrimOpTakeIN->ui32ClientSyncCount != 0)
 	{
-		ui32FenceValueInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32);
+		ui32FenceValueInt = OSAllocMemNoStats(psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32));
+		if (!ui32FenceValueInt)
+		{
+			psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto SyncPrimOpTake_exit;
+		}
 	}
 
 			/* Copy the data over */
-			if (psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpTakeIN->pui32FenceValue, psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32))
+				|| (OSCopyFromUser(NULL, ui32FenceValueInt, psSyncPrimOpTakeIN->pui32FenceValue,
+				psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpTakeIN->pui32FenceValue, psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32))
-					|| (OSCopyFromUser(NULL, ui32FenceValueInt, psSyncPrimOpTakeIN->pui32FenceValue,
-					psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
-				{
-					psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto SyncPrimOpTake_exit;
-				}
+				goto SyncPrimOpTake_exit;
 			}
 	if (psSyncPrimOpTakeIN->ui32ClientSyncCount != 0)
 	{
-		ui32UpdateValueInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32);
+		ui32UpdateValueInt = OSAllocMemNoStats(psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32));
+		if (!ui32UpdateValueInt)
+		{
+			psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto SyncPrimOpTake_exit;
+		}
 	}
 
 			/* Copy the data over */
-			if (psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpTakeIN->pui32UpdateValue, psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32))
+				|| (OSCopyFromUser(NULL, ui32UpdateValueInt, psSyncPrimOpTakeIN->pui32UpdateValue,
+				psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpTakeIN->pui32UpdateValue, psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32))
-					|| (OSCopyFromUser(NULL, ui32UpdateValueInt, psSyncPrimOpTakeIN->pui32UpdateValue,
-					psSyncPrimOpTakeIN->ui32ClientSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
-				{
-					psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto SyncPrimOpTake_exit;
-				}
+				goto SyncPrimOpTake_exit;
 			}
 	if (psSyncPrimOpTakeIN->ui32ServerSyncCount != 0)
 	{
-		ui32ServerFlagsInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psSyncPrimOpTakeIN->ui32ServerSyncCount * sizeof(IMG_UINT32);
+		ui32ServerFlagsInt = OSAllocMemNoStats(psSyncPrimOpTakeIN->ui32ServerSyncCount * sizeof(IMG_UINT32));
+		if (!ui32ServerFlagsInt)
+		{
+			psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
+			goto SyncPrimOpTake_exit;
+		}
 	}
 
 			/* Copy the data over */
-			if (psSyncPrimOpTakeIN->ui32ServerSyncCount * sizeof(IMG_UINT32) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpTakeIN->pui32ServerFlags, psSyncPrimOpTakeIN->ui32ServerSyncCount * sizeof(IMG_UINT32))
+				|| (OSCopyFromUser(NULL, ui32ServerFlagsInt, psSyncPrimOpTakeIN->pui32ServerFlags,
+				psSyncPrimOpTakeIN->ui32ServerSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncPrimOpTakeIN->pui32ServerFlags, psSyncPrimOpTakeIN->ui32ServerSyncCount * sizeof(IMG_UINT32))
-					|| (OSCopyFromUser(NULL, ui32ServerFlagsInt, psSyncPrimOpTakeIN->pui32ServerFlags,
-					psSyncPrimOpTakeIN->ui32ServerSyncCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
-				{
-					psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psSyncPrimOpTakeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto SyncPrimOpTake_exit;
-				}
+				goto SyncPrimOpTake_exit;
 			}
-
-
-
 
 
 
@@ -1167,14 +1065,14 @@ PVRSRVBridgeSyncPrimOpTake(IMG_UINT32 ui32DispatchTableEntry,
 					psSyncPrimOpTakeOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psServerCookieInt,
-											hServerCookie,
-											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE,
-											IMG_TRUE);
+											psSyncPrimOpTakeIN->hServerCookie,
+											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE);
 					if(psSyncPrimOpTakeOUT->eError != PVRSRV_OK)
 					{
 						goto SyncPrimOpTake_exit;
 					}
 				}
+
 
 	psSyncPrimOpTakeOUT->eError =
 		PVRSRVSyncPrimOpTakeKM(
@@ -1190,32 +1088,17 @@ PVRSRVBridgeSyncPrimOpTake(IMG_UINT32 ui32DispatchTableEntry,
 
 
 SyncPrimOpTake_exit:
-
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psServerCookieInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hServerCookie,
-											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE);
-						}
-				}
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
+	if (ui32FlagsInt)
+		OSFreeMemNoStats(ui32FlagsInt);
+	if (ui32FenceValueInt)
+		OSFreeMemNoStats(ui32FenceValueInt);
+	if (ui32UpdateValueInt)
+		OSFreeMemNoStats(ui32UpdateValueInt);
+	if (ui32ServerFlagsInt)
+		OSFreeMemNoStats(ui32ServerFlagsInt);
 
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeSyncPrimOpReady(IMG_UINT32 ui32DispatchTableEntry,
@@ -1223,13 +1106,7 @@ PVRSRVBridgeSyncPrimOpReady(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_SYNCPRIMOPREADY *psSyncPrimOpReadyOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hServerCookie = psSyncPrimOpReadyIN->hServerCookie;
 	SERVER_OP_COOKIE * psServerCookieInt = NULL;
-
-
-
-
-
 
 
 
@@ -1242,14 +1119,14 @@ PVRSRVBridgeSyncPrimOpReady(IMG_UINT32 ui32DispatchTableEntry,
 					psSyncPrimOpReadyOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psServerCookieInt,
-											hServerCookie,
-											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE,
-											IMG_TRUE);
+											psSyncPrimOpReadyIN->hServerCookie,
+											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE);
 					if(psSyncPrimOpReadyOUT->eError != PVRSRV_OK)
 					{
 						goto SyncPrimOpReady_exit;
 					}
 				}
+
 
 	psSyncPrimOpReadyOUT->eError =
 		PVRSRVSyncPrimOpReadyKM(
@@ -1261,25 +1138,8 @@ PVRSRVBridgeSyncPrimOpReady(IMG_UINT32 ui32DispatchTableEntry,
 
 SyncPrimOpReady_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psServerCookieInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hServerCookie,
-											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE);
-						}
-				}
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeSyncPrimOpComplete(IMG_UINT32 ui32DispatchTableEntry,
@@ -1287,13 +1147,7 @@ PVRSRVBridgeSyncPrimOpComplete(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_SYNCPRIMOPCOMPLETE *psSyncPrimOpCompleteOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hServerCookie = psSyncPrimOpCompleteIN->hServerCookie;
 	SERVER_OP_COOKIE * psServerCookieInt = NULL;
-
-
-
-
-
 
 
 
@@ -1306,14 +1160,14 @@ PVRSRVBridgeSyncPrimOpComplete(IMG_UINT32 ui32DispatchTableEntry,
 					psSyncPrimOpCompleteOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psServerCookieInt,
-											hServerCookie,
-											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE,
-											IMG_TRUE);
+											psSyncPrimOpCompleteIN->hServerCookie,
+											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE);
 					if(psSyncPrimOpCompleteOUT->eError != PVRSRV_OK)
 					{
 						goto SyncPrimOpComplete_exit;
 					}
 				}
+
 
 	psSyncPrimOpCompleteOUT->eError =
 		PVRSRVSyncPrimOpCompleteKM(
@@ -1324,25 +1178,8 @@ PVRSRVBridgeSyncPrimOpComplete(IMG_UINT32 ui32DispatchTableEntry,
 
 SyncPrimOpComplete_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psServerCookieInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hServerCookie,
-											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE);
-						}
-				}
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeSyncPrimOpDestroy(IMG_UINT32 ui32DispatchTableEntry,
@@ -1359,55 +1196,36 @@ PVRSRVBridgeSyncPrimOpDestroy(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
-
-
-
-
 	psSyncPrimOpDestroyOUT->eError =
 		PVRSRVReleaseHandle(psConnection->psHandleBase,
 					(IMG_HANDLE) psSyncPrimOpDestroyIN->hServerCookie,
 					PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE);
-	if ((psSyncPrimOpDestroyOUT->eError != PVRSRV_OK) &&
-	    (psSyncPrimOpDestroyOUT->eError != PVRSRV_ERROR_RETRY))
+	if ((psSyncPrimOpDestroyOUT->eError != PVRSRV_OK) && (psSyncPrimOpDestroyOUT->eError != PVRSRV_ERROR_RETRY))
 	{
-		PVR_DPF((PVR_DBG_ERROR,
-		        "PVRSRVBridgeSyncPrimOpDestroy: %s",
-		        PVRSRVGetErrorStringKM(psSyncPrimOpDestroyOUT->eError)));
 		PVR_ASSERT(0);
 		goto SyncPrimOpDestroy_exit;
 	}
 
 
 
-
 SyncPrimOpDestroy_exit:
-
-
 
 	return 0;
 }
 
-
-#if defined(PDUMP)
 static IMG_INT
 PVRSRVBridgeSyncPrimPDump(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_IN_SYNCPRIMPDUMP *psSyncPrimPDumpIN,
 					  PVRSRV_BRIDGE_OUT_SYNCPRIMPDUMP *psSyncPrimPDumpOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hSyncHandle = psSyncPrimPDumpIN->hSyncHandle;
 	SYNC_PRIMITIVE_BLOCK * psSyncHandleInt = NULL;
 
 
 
 
 
-
-
-
-
-
+	PMRLock();
 
 
 				{
@@ -1415,67 +1233,43 @@ PVRSRVBridgeSyncPrimPDump(IMG_UINT32 ui32DispatchTableEntry,
 					psSyncPrimPDumpOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSyncHandleInt,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK,
-											IMG_TRUE);
+											psSyncPrimPDumpIN->hSyncHandle,
+											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psSyncPrimPDumpOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto SyncPrimPDump_exit;
 					}
 				}
+
 
 	psSyncPrimPDumpOUT->eError =
 		PVRSRVSyncPrimPDumpKM(
 					psSyncHandleInt,
 					psSyncPrimPDumpIN->ui32Offset);
+	PMRUnlock();
 
 
 
 
 SyncPrimPDump_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psSyncHandleInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
-						}
-				}
-
-
 	return 0;
 }
 
-#else
-#define PVRSRVBridgeSyncPrimPDump NULL
-#endif
-
-#if defined(PDUMP)
 static IMG_INT
 PVRSRVBridgeSyncPrimPDumpValue(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_IN_SYNCPRIMPDUMPVALUE *psSyncPrimPDumpValueIN,
 					  PVRSRV_BRIDGE_OUT_SYNCPRIMPDUMPVALUE *psSyncPrimPDumpValueOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hSyncHandle = psSyncPrimPDumpValueIN->hSyncHandle;
 	SYNC_PRIMITIVE_BLOCK * psSyncHandleInt = NULL;
 
 
 
 
 
-
-
-
-
-
+	PMRLock();
 
 
 				{
@@ -1483,63 +1277,38 @@ PVRSRVBridgeSyncPrimPDumpValue(IMG_UINT32 ui32DispatchTableEntry,
 					psSyncPrimPDumpValueOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSyncHandleInt,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK,
-											IMG_TRUE);
+											psSyncPrimPDumpValueIN->hSyncHandle,
+											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psSyncPrimPDumpValueOUT->eError != PVRSRV_OK)
 					{
+						PMRUnlock();
 						goto SyncPrimPDumpValue_exit;
 					}
 				}
+
 
 	psSyncPrimPDumpValueOUT->eError =
 		PVRSRVSyncPrimPDumpValueKM(
 					psSyncHandleInt,
 					psSyncPrimPDumpValueIN->ui32Offset,
 					psSyncPrimPDumpValueIN->ui32Value);
+	PMRUnlock();
 
 
 
 
 SyncPrimPDumpValue_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psSyncHandleInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
-						}
-				}
-
-
 	return 0;
 }
 
-#else
-#define PVRSRVBridgeSyncPrimPDumpValue NULL
-#endif
-
-#if defined(PDUMP)
 static IMG_INT
 PVRSRVBridgeSyncPrimPDumpPol(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_IN_SYNCPRIMPDUMPPOL *psSyncPrimPDumpPolIN,
 					  PVRSRV_BRIDGE_OUT_SYNCPRIMPDUMPPOL *psSyncPrimPDumpPolOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hSyncHandle = psSyncPrimPDumpPolIN->hSyncHandle;
 	SYNC_PRIMITIVE_BLOCK * psSyncHandleInt = NULL;
-
-
-
-
-
 
 
 
@@ -1552,14 +1321,14 @@ PVRSRVBridgeSyncPrimPDumpPol(IMG_UINT32 ui32DispatchTableEntry,
 					psSyncPrimPDumpPolOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSyncHandleInt,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK,
-											IMG_TRUE);
+											psSyncPrimPDumpPolIN->hSyncHandle,
+											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psSyncPrimPDumpPolOUT->eError != PVRSRV_OK)
 					{
 						goto SyncPrimPDumpPol_exit;
 					}
 				}
+
 
 	psSyncPrimPDumpPolOUT->eError =
 		PVRSRVSyncPrimPDumpPolKM(
@@ -1575,43 +1344,16 @@ PVRSRVBridgeSyncPrimPDumpPol(IMG_UINT32 ui32DispatchTableEntry,
 
 SyncPrimPDumpPol_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psSyncHandleInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
-						}
-				}
-
-
 	return 0;
 }
 
-#else
-#define PVRSRVBridgeSyncPrimPDumpPol NULL
-#endif
-
-#if defined(PDUMP)
 static IMG_INT
 PVRSRVBridgeSyncPrimOpPDumpPol(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_IN_SYNCPRIMOPPDUMPPOL *psSyncPrimOpPDumpPolIN,
 					  PVRSRV_BRIDGE_OUT_SYNCPRIMOPPDUMPPOL *psSyncPrimOpPDumpPolOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hServerCookie = psSyncPrimOpPDumpPolIN->hServerCookie;
 	SERVER_OP_COOKIE * psServerCookieInt = NULL;
-
-
-
-
-
 
 
 
@@ -1624,14 +1366,14 @@ PVRSRVBridgeSyncPrimOpPDumpPol(IMG_UINT32 ui32DispatchTableEntry,
 					psSyncPrimOpPDumpPolOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psServerCookieInt,
-											hServerCookie,
-											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE,
-											IMG_TRUE);
+											psSyncPrimOpPDumpPolIN->hServerCookie,
+											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE);
 					if(psSyncPrimOpPDumpPolOUT->eError != PVRSRV_OK)
 					{
 						goto SyncPrimOpPDumpPol_exit;
 					}
 				}
+
 
 	psSyncPrimOpPDumpPolOUT->eError =
 		PVRSRVSyncPrimOpPDumpPolKM(
@@ -1644,43 +1386,16 @@ PVRSRVBridgeSyncPrimOpPDumpPol(IMG_UINT32 ui32DispatchTableEntry,
 
 SyncPrimOpPDumpPol_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psServerCookieInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hServerCookie,
-											PVRSRV_HANDLE_TYPE_SERVER_OP_COOKIE);
-						}
-				}
-
-
 	return 0;
 }
 
-#else
-#define PVRSRVBridgeSyncPrimOpPDumpPol NULL
-#endif
-
-#if defined(PDUMP)
 static IMG_INT
 PVRSRVBridgeSyncPrimPDumpCBP(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_IN_SYNCPRIMPDUMPCBP *psSyncPrimPDumpCBPIN,
 					  PVRSRV_BRIDGE_OUT_SYNCPRIMPDUMPCBP *psSyncPrimPDumpCBPOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hSyncHandle = psSyncPrimPDumpCBPIN->hSyncHandle;
 	SYNC_PRIMITIVE_BLOCK * psSyncHandleInt = NULL;
-
-
-
-
-
 
 
 
@@ -1693,14 +1408,14 @@ PVRSRVBridgeSyncPrimPDumpCBP(IMG_UINT32 ui32DispatchTableEntry,
 					psSyncPrimPDumpCBPOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSyncHandleInt,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK,
-											IMG_TRUE);
+											psSyncPrimPDumpCBPIN->hSyncHandle,
+											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
 					if(psSyncPrimPDumpCBPOUT->eError != PVRSRV_OK)
 					{
 						goto SyncPrimPDumpCBP_exit;
 					}
 				}
+
 
 	psSyncPrimPDumpCBPOUT->eError =
 		PVRSRVSyncPrimPDumpCBPKM(
@@ -1715,132 +1430,8 @@ PVRSRVBridgeSyncPrimPDumpCBP(IMG_UINT32 ui32DispatchTableEntry,
 
 SyncPrimPDumpCBP_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psSyncHandleInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hSyncHandle,
-											PVRSRV_HANDLE_TYPE_SYNC_PRIMITIVE_BLOCK);
-						}
-				}
-
-
 	return 0;
 }
-
-#else
-#define PVRSRVBridgeSyncPrimPDumpCBP NULL
-#endif
-
-static IMG_INT
-PVRSRVBridgeSyncAllocEvent(IMG_UINT32 ui32DispatchTableEntry,
-					  PVRSRV_BRIDGE_IN_SYNCALLOCEVENT *psSyncAllocEventIN,
-					  PVRSRV_BRIDGE_OUT_SYNCALLOCEVENT *psSyncAllocEventOUT,
-					 CONNECTION_DATA *psConnection)
-{
-	IMG_CHAR *uiClassNameInt = NULL;
-
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(psSyncAllocEventIN->ui32ClassNameSize * sizeof(IMG_CHAR)) +
-			0;
-
-
-	PVR_UNREFERENCED_PARAMETER(psConnection);
-
-
-
-	if (ui32BufferSize != 0)
-	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
-		{
-			psSyncAllocEventOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-			goto SyncAllocEvent_exit;
-		}
-	}
-
-	if (psSyncAllocEventIN->ui32ClassNameSize != 0)
-	{
-		uiClassNameInt = (IMG_CHAR*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psSyncAllocEventIN->ui32ClassNameSize * sizeof(IMG_CHAR);
-	}
-
-			/* Copy the data over */
-			if (psSyncAllocEventIN->ui32ClassNameSize * sizeof(IMG_CHAR) > 0)
-			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psSyncAllocEventIN->puiClassName, psSyncAllocEventIN->ui32ClassNameSize * sizeof(IMG_CHAR))
-					|| (OSCopyFromUser(NULL, uiClassNameInt, psSyncAllocEventIN->puiClassName,
-					psSyncAllocEventIN->ui32ClassNameSize * sizeof(IMG_CHAR)) != PVRSRV_OK) )
-				{
-					psSyncAllocEventOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
-
-					goto SyncAllocEvent_exit;
-				}
-			}
-
-
-	psSyncAllocEventOUT->eError =
-		PVRSRVSyncAllocEventKM(
-					psSyncAllocEventIN->bServerSync,
-					psSyncAllocEventIN->ui32FWAddr,
-					psSyncAllocEventIN->ui32ClassNameSize,
-					uiClassNameInt);
-
-
-
-
-SyncAllocEvent_exit:
-
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
-
-	return 0;
-}
-
-
-static IMG_INT
-PVRSRVBridgeSyncFreeEvent(IMG_UINT32 ui32DispatchTableEntry,
-					  PVRSRV_BRIDGE_IN_SYNCFREEEVENT *psSyncFreeEventIN,
-					  PVRSRV_BRIDGE_OUT_SYNCFREEEVENT *psSyncFreeEventOUT,
-					 CONNECTION_DATA *psConnection)
-{
-
-
-
-	PVR_UNREFERENCED_PARAMETER(psConnection);
-
-
-
-
-
-	psSyncFreeEventOUT->eError =
-		PVRSRVSyncFreeEventKM(
-					psSyncFreeEventIN->ui32FWAddr);
-
-
-
-
-
-
-
-	return 0;
-}
-
 
 
 
@@ -1869,6 +1460,12 @@ PVRSRV_ERROR InitSYNCBridge(void)
 					NULL, bUseLock);
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_SYNC, PVRSRV_BRIDGE_SYNC_SERVERSYNCPRIMSET, PVRSRVBridgeServerSyncPrimSet,
+					NULL, bUseLock);
+
+	SetDispatchTableEntry(PVRSRV_BRIDGE_SYNC, PVRSRV_BRIDGE_SYNC_SYNCRECORDREMOVEBYHANDLE, PVRSRVBridgeSyncRecordRemoveByHandle,
+					NULL, bUseLock);
+
+	SetDispatchTableEntry(PVRSRV_BRIDGE_SYNC, PVRSRV_BRIDGE_SYNC_SYNCRECORDADD, PVRSRVBridgeSyncRecordAdd,
 					NULL, bUseLock);
 
 	SetDispatchTableEntry(PVRSRV_BRIDGE_SYNC, PVRSRV_BRIDGE_SYNC_SERVERSYNCALLOC, PVRSRVBridgeServerSyncAlloc,
@@ -1913,12 +1510,6 @@ PVRSRV_ERROR InitSYNCBridge(void)
 	SetDispatchTableEntry(PVRSRV_BRIDGE_SYNC, PVRSRV_BRIDGE_SYNC_SYNCPRIMPDUMPCBP, PVRSRVBridgeSyncPrimPDumpCBP,
 					NULL, bUseLock);
 
-	SetDispatchTableEntry(PVRSRV_BRIDGE_SYNC, PVRSRV_BRIDGE_SYNC_SYNCALLOCEVENT, PVRSRVBridgeSyncAllocEvent,
-					NULL, bUseLock);
-
-	SetDispatchTableEntry(PVRSRV_BRIDGE_SYNC, PVRSRV_BRIDGE_SYNC_SYNCFREEEVENT, PVRSRVBridgeSyncFreeEvent,
-					NULL, bUseLock);
-
 
 	return PVRSRV_OK;
 }
@@ -1930,3 +1521,4 @@ PVRSRV_ERROR DeinitSYNCBridge(void)
 {
 	return PVRSRV_OK;
 }
+

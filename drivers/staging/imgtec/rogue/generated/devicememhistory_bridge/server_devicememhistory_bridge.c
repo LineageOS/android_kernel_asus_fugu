@@ -64,9 +64,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "lock.h"
 
 
-#if defined(SUPPORT_DEVICEMEMHISTORY_BRIDGE)
-
-
 
 /* ***************************************************************************
  * Server-side bridge entry points
@@ -80,47 +77,31 @@ PVRSRVBridgeDevicememHistoryMap(IMG_UINT32 ui32DispatchTableEntry,
 {
 	IMG_CHAR *uiTextInt = NULL;
 
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) +
-			0;
-
-
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 
 
 
-	if (ui32BufferSize != 0)
+	
 	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
+		uiTextInt = OSAllocMemNoStats(DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR));
+		if (!uiTextInt)
 		{
 			psDevicememHistoryMapOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
 			goto DevicememHistoryMap_exit;
 		}
 	}
 
-	
-	{
-		uiTextInt = (IMG_CHAR*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR);
-	}
-
 			/* Copy the data over */
-			if (DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistoryMapIN->puiText, DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR))
+				|| (OSCopyFromUser(NULL, uiTextInt, psDevicememHistoryMapIN->puiText,
+				DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistoryMapIN->puiText, DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR))
-					|| (OSCopyFromUser(NULL, uiTextInt, psDevicememHistoryMapIN->puiText,
-					DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) != PVRSRV_OK) )
-				{
-					psDevicememHistoryMapOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psDevicememHistoryMapOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto DevicememHistoryMap_exit;
-				}
+				goto DevicememHistoryMap_exit;
 			}
+
 
 
 	psDevicememHistoryMapOUT->eError =
@@ -133,18 +114,11 @@ PVRSRVBridgeDevicememHistoryMap(IMG_UINT32 ui32DispatchTableEntry,
 
 
 DevicememHistoryMap_exit:
-
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
+	if (uiTextInt)
+		OSFreeMemNoStats(uiTextInt);
 
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeDevicememHistoryUnmap(IMG_UINT32 ui32DispatchTableEntry,
@@ -154,47 +128,31 @@ PVRSRVBridgeDevicememHistoryUnmap(IMG_UINT32 ui32DispatchTableEntry,
 {
 	IMG_CHAR *uiTextInt = NULL;
 
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) +
-			0;
-
-
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 
 
 
-	if (ui32BufferSize != 0)
+	
 	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
+		uiTextInt = OSAllocMemNoStats(DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR));
+		if (!uiTextInt)
 		{
 			psDevicememHistoryUnmapOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
 			goto DevicememHistoryUnmap_exit;
 		}
 	}
 
-	
-	{
-		uiTextInt = (IMG_CHAR*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR);
-	}
-
 			/* Copy the data over */
-			if (DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistoryUnmapIN->puiText, DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR))
+				|| (OSCopyFromUser(NULL, uiTextInt, psDevicememHistoryUnmapIN->puiText,
+				DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistoryUnmapIN->puiText, DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR))
-					|| (OSCopyFromUser(NULL, uiTextInt, psDevicememHistoryUnmapIN->puiText,
-					DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) != PVRSRV_OK) )
-				{
-					psDevicememHistoryUnmapOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psDevicememHistoryUnmapOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto DevicememHistoryUnmap_exit;
-				}
+				goto DevicememHistoryUnmap_exit;
 			}
+
 
 
 	psDevicememHistoryUnmapOUT->eError =
@@ -207,556 +165,11 @@ PVRSRVBridgeDevicememHistoryUnmap(IMG_UINT32 ui32DispatchTableEntry,
 
 
 DevicememHistoryUnmap_exit:
-
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
+	if (uiTextInt)
+		OSFreeMemNoStats(uiTextInt);
 
 	return 0;
 }
-
-
-static IMG_INT
-PVRSRVBridgeDevicememHistoryMapNew(IMG_UINT32 ui32DispatchTableEntry,
-					  PVRSRV_BRIDGE_IN_DEVICEMEMHISTORYMAPNEW *psDevicememHistoryMapNewIN,
-					  PVRSRV_BRIDGE_OUT_DEVICEMEMHISTORYMAPNEW *psDevicememHistoryMapNewOUT,
-					 CONNECTION_DATA *psConnection)
-{
-	IMG_HANDLE hPMR = psDevicememHistoryMapNewIN->hPMR;
-	PMR * psPMRInt = NULL;
-	IMG_CHAR *uiTextInt = NULL;
-
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) +
-			0;
-
-
-
-
-
-	if (ui32BufferSize != 0)
-	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
-		{
-			psDevicememHistoryMapNewOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-			goto DevicememHistoryMapNew_exit;
-		}
-	}
-
-	
-	{
-		uiTextInt = (IMG_CHAR*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR);
-	}
-
-			/* Copy the data over */
-			if (DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR) > 0)
-			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistoryMapNewIN->puiText, DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR))
-					|| (OSCopyFromUser(NULL, uiTextInt, psDevicememHistoryMapNewIN->puiText,
-					DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) != PVRSRV_OK) )
-				{
-					psDevicememHistoryMapNewOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
-
-					goto DevicememHistoryMapNew_exit;
-				}
-			}
-
-
-
-
-
-
-				{
-					/* Look up the address from the handle */
-					psDevicememHistoryMapNewOUT->eError =
-						PVRSRVLookupHandle(psConnection->psHandleBase,
-											(void **) &psPMRInt,
-											hPMR,
-											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR,
-											IMG_TRUE);
-					if(psDevicememHistoryMapNewOUT->eError != PVRSRV_OK)
-					{
-						goto DevicememHistoryMapNew_exit;
-					}
-				}
-
-	psDevicememHistoryMapNewOUT->eError =
-		DevicememHistoryMapNewKM(
-					psPMRInt,
-					psDevicememHistoryMapNewIN->uiOffset,
-					psDevicememHistoryMapNewIN->sDevVAddr,
-					psDevicememHistoryMapNewIN->uiSize,
-					uiTextInt,
-					psDevicememHistoryMapNewIN->ui32Log2PageSize,
-					psDevicememHistoryMapNewIN->ui32AllocationIndex,
-					&psDevicememHistoryMapNewOUT->ui32AllocationIndexOut);
-
-
-
-
-DevicememHistoryMapNew_exit:
-
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psPMRInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hPMR,
-											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR);
-						}
-				}
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
-
-	return 0;
-}
-
-
-static IMG_INT
-PVRSRVBridgeDevicememHistoryUnmapNew(IMG_UINT32 ui32DispatchTableEntry,
-					  PVRSRV_BRIDGE_IN_DEVICEMEMHISTORYUNMAPNEW *psDevicememHistoryUnmapNewIN,
-					  PVRSRV_BRIDGE_OUT_DEVICEMEMHISTORYUNMAPNEW *psDevicememHistoryUnmapNewOUT,
-					 CONNECTION_DATA *psConnection)
-{
-	IMG_HANDLE hPMR = psDevicememHistoryUnmapNewIN->hPMR;
-	PMR * psPMRInt = NULL;
-	IMG_CHAR *uiTextInt = NULL;
-
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) +
-			0;
-
-
-
-
-
-	if (ui32BufferSize != 0)
-	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
-		{
-			psDevicememHistoryUnmapNewOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-			goto DevicememHistoryUnmapNew_exit;
-		}
-	}
-
-	
-	{
-		uiTextInt = (IMG_CHAR*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR);
-	}
-
-			/* Copy the data over */
-			if (DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR) > 0)
-			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistoryUnmapNewIN->puiText, DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR))
-					|| (OSCopyFromUser(NULL, uiTextInt, psDevicememHistoryUnmapNewIN->puiText,
-					DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) != PVRSRV_OK) )
-				{
-					psDevicememHistoryUnmapNewOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
-
-					goto DevicememHistoryUnmapNew_exit;
-				}
-			}
-
-
-
-
-
-
-				{
-					/* Look up the address from the handle */
-					psDevicememHistoryUnmapNewOUT->eError =
-						PVRSRVLookupHandle(psConnection->psHandleBase,
-											(void **) &psPMRInt,
-											hPMR,
-											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR,
-											IMG_TRUE);
-					if(psDevicememHistoryUnmapNewOUT->eError != PVRSRV_OK)
-					{
-						goto DevicememHistoryUnmapNew_exit;
-					}
-				}
-
-	psDevicememHistoryUnmapNewOUT->eError =
-		DevicememHistoryUnmapNewKM(
-					psPMRInt,
-					psDevicememHistoryUnmapNewIN->uiOffset,
-					psDevicememHistoryUnmapNewIN->sDevVAddr,
-					psDevicememHistoryUnmapNewIN->uiSize,
-					uiTextInt,
-					psDevicememHistoryUnmapNewIN->ui32Log2PageSize,
-					psDevicememHistoryUnmapNewIN->ui32AllocationIndex,
-					&psDevicememHistoryUnmapNewOUT->ui32AllocationIndexOut);
-
-
-
-
-DevicememHistoryUnmapNew_exit:
-
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psPMRInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hPMR,
-											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR);
-						}
-				}
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
-
-	return 0;
-}
-
-
-static IMG_INT
-PVRSRVBridgeDevicememHistoryMapVRange(IMG_UINT32 ui32DispatchTableEntry,
-					  PVRSRV_BRIDGE_IN_DEVICEMEMHISTORYMAPVRANGE *psDevicememHistoryMapVRangeIN,
-					  PVRSRV_BRIDGE_OUT_DEVICEMEMHISTORYMAPVRANGE *psDevicememHistoryMapVRangeOUT,
-					 CONNECTION_DATA *psConnection)
-{
-	IMG_CHAR *uiTextInt = NULL;
-
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) +
-			0;
-
-
-	PVR_UNREFERENCED_PARAMETER(psConnection);
-
-
-
-	if (ui32BufferSize != 0)
-	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
-		{
-			psDevicememHistoryMapVRangeOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-			goto DevicememHistoryMapVRange_exit;
-		}
-	}
-
-	
-	{
-		uiTextInt = (IMG_CHAR*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR);
-	}
-
-			/* Copy the data over */
-			if (DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR) > 0)
-			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistoryMapVRangeIN->puiText, DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR))
-					|| (OSCopyFromUser(NULL, uiTextInt, psDevicememHistoryMapVRangeIN->puiText,
-					DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) != PVRSRV_OK) )
-				{
-					psDevicememHistoryMapVRangeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
-
-					goto DevicememHistoryMapVRange_exit;
-				}
-			}
-
-
-	psDevicememHistoryMapVRangeOUT->eError =
-		DevicememHistoryMapVRangeKM(
-					psDevicememHistoryMapVRangeIN->sBaseDevVAddr,
-					psDevicememHistoryMapVRangeIN->ui32ui32StartPage,
-					psDevicememHistoryMapVRangeIN->ui32NumPages,
-					psDevicememHistoryMapVRangeIN->uiAllocSize,
-					uiTextInt,
-					psDevicememHistoryMapVRangeIN->ui32Log2PageSize,
-					psDevicememHistoryMapVRangeIN->ui32AllocationIndex,
-					&psDevicememHistoryMapVRangeOUT->ui32AllocationIndexOut);
-
-
-
-
-DevicememHistoryMapVRange_exit:
-
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
-
-	return 0;
-}
-
-
-static IMG_INT
-PVRSRVBridgeDevicememHistoryUnmapVRange(IMG_UINT32 ui32DispatchTableEntry,
-					  PVRSRV_BRIDGE_IN_DEVICEMEMHISTORYUNMAPVRANGE *psDevicememHistoryUnmapVRangeIN,
-					  PVRSRV_BRIDGE_OUT_DEVICEMEMHISTORYUNMAPVRANGE *psDevicememHistoryUnmapVRangeOUT,
-					 CONNECTION_DATA *psConnection)
-{
-	IMG_CHAR *uiTextInt = NULL;
-
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) +
-			0;
-
-
-	PVR_UNREFERENCED_PARAMETER(psConnection);
-
-
-
-	if (ui32BufferSize != 0)
-	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
-		{
-			psDevicememHistoryUnmapVRangeOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-			goto DevicememHistoryUnmapVRange_exit;
-		}
-	}
-
-	
-	{
-		uiTextInt = (IMG_CHAR*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR);
-	}
-
-			/* Copy the data over */
-			if (DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR) > 0)
-			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistoryUnmapVRangeIN->puiText, DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR))
-					|| (OSCopyFromUser(NULL, uiTextInt, psDevicememHistoryUnmapVRangeIN->puiText,
-					DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) != PVRSRV_OK) )
-				{
-					psDevicememHistoryUnmapVRangeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
-
-					goto DevicememHistoryUnmapVRange_exit;
-				}
-			}
-
-
-	psDevicememHistoryUnmapVRangeOUT->eError =
-		DevicememHistoryUnmapVRangeKM(
-					psDevicememHistoryUnmapVRangeIN->sBaseDevVAddr,
-					psDevicememHistoryUnmapVRangeIN->ui32ui32StartPage,
-					psDevicememHistoryUnmapVRangeIN->ui32NumPages,
-					psDevicememHistoryUnmapVRangeIN->uiAllocSize,
-					uiTextInt,
-					psDevicememHistoryUnmapVRangeIN->ui32Log2PageSize,
-					psDevicememHistoryUnmapVRangeIN->ui32AllocationIndex,
-					&psDevicememHistoryUnmapVRangeOUT->ui32AllocationIndexOut);
-
-
-
-
-DevicememHistoryUnmapVRange_exit:
-
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
-
-	return 0;
-}
-
-
-static IMG_INT
-PVRSRVBridgeDevicememHistorySparseChange(IMG_UINT32 ui32DispatchTableEntry,
-					  PVRSRV_BRIDGE_IN_DEVICEMEMHISTORYSPARSECHANGE *psDevicememHistorySparseChangeIN,
-					  PVRSRV_BRIDGE_OUT_DEVICEMEMHISTORYSPARSECHANGE *psDevicememHistorySparseChangeOUT,
-					 CONNECTION_DATA *psConnection)
-{
-	IMG_HANDLE hPMR = psDevicememHistorySparseChangeIN->hPMR;
-	PMR * psPMRInt = NULL;
-	IMG_CHAR *uiTextInt = NULL;
-	IMG_UINT32 *ui32AllocPageIndicesInt = NULL;
-	IMG_UINT32 *ui32FreePageIndicesInt = NULL;
-
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) +
-			(psDevicememHistorySparseChangeIN->ui32AllocPageCount * sizeof(IMG_UINT32)) +
-			(psDevicememHistorySparseChangeIN->ui32FreePageCount * sizeof(IMG_UINT32)) +
-			0;
-
-
-
-
-
-	if (ui32BufferSize != 0)
-	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
-		{
-			psDevicememHistorySparseChangeOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-			goto DevicememHistorySparseChange_exit;
-		}
-	}
-
-	
-	{
-		uiTextInt = (IMG_CHAR*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR);
-	}
-
-			/* Copy the data over */
-			if (DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR) > 0)
-			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistorySparseChangeIN->puiText, DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR))
-					|| (OSCopyFromUser(NULL, uiTextInt, psDevicememHistorySparseChangeIN->puiText,
-					DEVICEMEM_HISTORY_TEXT_BUFSZ * sizeof(IMG_CHAR)) != PVRSRV_OK) )
-				{
-					psDevicememHistorySparseChangeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
-
-					goto DevicememHistorySparseChange_exit;
-				}
-			}
-	if (psDevicememHistorySparseChangeIN->ui32AllocPageCount != 0)
-	{
-		ui32AllocPageIndicesInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psDevicememHistorySparseChangeIN->ui32AllocPageCount * sizeof(IMG_UINT32);
-	}
-
-			/* Copy the data over */
-			if (psDevicememHistorySparseChangeIN->ui32AllocPageCount * sizeof(IMG_UINT32) > 0)
-			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistorySparseChangeIN->pui32AllocPageIndices, psDevicememHistorySparseChangeIN->ui32AllocPageCount * sizeof(IMG_UINT32))
-					|| (OSCopyFromUser(NULL, ui32AllocPageIndicesInt, psDevicememHistorySparseChangeIN->pui32AllocPageIndices,
-					psDevicememHistorySparseChangeIN->ui32AllocPageCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
-				{
-					psDevicememHistorySparseChangeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
-
-					goto DevicememHistorySparseChange_exit;
-				}
-			}
-	if (psDevicememHistorySparseChangeIN->ui32FreePageCount != 0)
-	{
-		ui32FreePageIndicesInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psDevicememHistorySparseChangeIN->ui32FreePageCount * sizeof(IMG_UINT32);
-	}
-
-			/* Copy the data over */
-			if (psDevicememHistorySparseChangeIN->ui32FreePageCount * sizeof(IMG_UINT32) > 0)
-			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psDevicememHistorySparseChangeIN->pui32FreePageIndices, psDevicememHistorySparseChangeIN->ui32FreePageCount * sizeof(IMG_UINT32))
-					|| (OSCopyFromUser(NULL, ui32FreePageIndicesInt, psDevicememHistorySparseChangeIN->pui32FreePageIndices,
-					psDevicememHistorySparseChangeIN->ui32FreePageCount * sizeof(IMG_UINT32)) != PVRSRV_OK) )
-				{
-					psDevicememHistorySparseChangeOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
-
-					goto DevicememHistorySparseChange_exit;
-				}
-			}
-
-
-
-
-
-
-				{
-					/* Look up the address from the handle */
-					psDevicememHistorySparseChangeOUT->eError =
-						PVRSRVLookupHandle(psConnection->psHandleBase,
-											(void **) &psPMRInt,
-											hPMR,
-											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR,
-											IMG_TRUE);
-					if(psDevicememHistorySparseChangeOUT->eError != PVRSRV_OK)
-					{
-						goto DevicememHistorySparseChange_exit;
-					}
-				}
-
-	psDevicememHistorySparseChangeOUT->eError =
-		DevicememHistorySparseChangeKM(
-					psPMRInt,
-					psDevicememHistorySparseChangeIN->uiOffset,
-					psDevicememHistorySparseChangeIN->sDevVAddr,
-					psDevicememHistorySparseChangeIN->uiSize,
-					uiTextInt,
-					psDevicememHistorySparseChangeIN->ui32Log2PageSize,
-					psDevicememHistorySparseChangeIN->ui32AllocPageCount,
-					ui32AllocPageIndicesInt,
-					psDevicememHistorySparseChangeIN->ui32FreePageCount,
-					ui32FreePageIndicesInt,
-					psDevicememHistorySparseChangeIN->ui32AllocationIndex,
-					&psDevicememHistorySparseChangeOUT->ui32AllocationIndexOut);
-
-
-
-
-DevicememHistorySparseChange_exit:
-
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(psPMRInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hPMR,
-											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR);
-						}
-				}
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
-
-	return 0;
-}
-
 
 
 
@@ -766,9 +179,7 @@ DevicememHistorySparseChange_exit:
 
 static POS_LOCK pDEVICEMEMHISTORYBridgeLock;
 static IMG_BOOL bUseLock = IMG_TRUE;
-#endif /* SUPPORT_DEVICEMEMHISTORY_BRIDGE */
 
-#if defined(SUPPORT_DEVICEMEMHISTORY_BRIDGE)
 PVRSRV_ERROR InitDEVICEMEMHISTORYBridge(void);
 PVRSRV_ERROR DeinitDEVICEMEMHISTORYBridge(void);
 
@@ -785,21 +196,6 @@ PVRSRV_ERROR InitDEVICEMEMHISTORYBridge(void)
 	SetDispatchTableEntry(PVRSRV_BRIDGE_DEVICEMEMHISTORY, PVRSRV_BRIDGE_DEVICEMEMHISTORY_DEVICEMEMHISTORYUNMAP, PVRSRVBridgeDevicememHistoryUnmap,
 					pDEVICEMEMHISTORYBridgeLock, bUseLock);
 
-	SetDispatchTableEntry(PVRSRV_BRIDGE_DEVICEMEMHISTORY, PVRSRV_BRIDGE_DEVICEMEMHISTORY_DEVICEMEMHISTORYMAPNEW, PVRSRVBridgeDevicememHistoryMapNew,
-					pDEVICEMEMHISTORYBridgeLock, bUseLock);
-
-	SetDispatchTableEntry(PVRSRV_BRIDGE_DEVICEMEMHISTORY, PVRSRV_BRIDGE_DEVICEMEMHISTORY_DEVICEMEMHISTORYUNMAPNEW, PVRSRVBridgeDevicememHistoryUnmapNew,
-					pDEVICEMEMHISTORYBridgeLock, bUseLock);
-
-	SetDispatchTableEntry(PVRSRV_BRIDGE_DEVICEMEMHISTORY, PVRSRV_BRIDGE_DEVICEMEMHISTORY_DEVICEMEMHISTORYMAPVRANGE, PVRSRVBridgeDevicememHistoryMapVRange,
-					pDEVICEMEMHISTORYBridgeLock, bUseLock);
-
-	SetDispatchTableEntry(PVRSRV_BRIDGE_DEVICEMEMHISTORY, PVRSRV_BRIDGE_DEVICEMEMHISTORY_DEVICEMEMHISTORYUNMAPVRANGE, PVRSRVBridgeDevicememHistoryUnmapVRange,
-					pDEVICEMEMHISTORYBridgeLock, bUseLock);
-
-	SetDispatchTableEntry(PVRSRV_BRIDGE_DEVICEMEMHISTORY, PVRSRV_BRIDGE_DEVICEMEMHISTORY_DEVICEMEMHISTORYSPARSECHANGE, PVRSRVBridgeDevicememHistorySparseChange,
-					pDEVICEMEMHISTORYBridgeLock, bUseLock);
-
 
 	return PVRSRV_OK;
 }
@@ -812,14 +208,4 @@ PVRSRV_ERROR DeinitDEVICEMEMHISTORYBridge(void)
 	PVR_LOGR_IF_ERROR(OSLockDestroy(pDEVICEMEMHISTORYBridgeLock), "OSLockDestroy");
 	return PVRSRV_OK;
 }
-#else /* SUPPORT_DEVICEMEMHISTORY_BRIDGE */
-/* This bridge is conditional on SUPPORT_DEVICEMEMHISTORY_BRIDGE - when not defined,
- * do not populate the dispatch table with its functions
- */
-#define InitDEVICEMEMHISTORYBridge() \
-	PVRSRV_OK
 
-#define DeinitDEVICEMEMHISTORYBridge() \
-	PVRSRV_OK
-
-#endif /* SUPPORT_DEVICEMEMHISTORY_BRIDGE */

@@ -64,8 +64,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 
-
-
 /* ***************************************************************************
  * Server-side bridge entry points
  */
@@ -83,7 +81,6 @@ PVRSRVBridgeRGXBeginTimerQuery(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
 	psRGXBeginTimerQueryOUT->eError =
 		PVRSRVRGXBeginTimerQueryKM(psConnection, OSGetDevData(psConnection),
 					psRGXBeginTimerQueryIN->ui32QueryId);
@@ -92,11 +89,8 @@ PVRSRVBridgeRGXBeginTimerQuery(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeRGXEndTimerQuery(IMG_UINT32 ui32DispatchTableEntry,
@@ -105,9 +99,8 @@ PVRSRVBridgeRGXEndTimerQuery(IMG_UINT32 ui32DispatchTableEntry,
 					 CONNECTION_DATA *psConnection)
 {
 
-
-
 	PVR_UNREFERENCED_PARAMETER(psRGXEndTimerQueryIN);
+
 
 
 
@@ -121,11 +114,8 @@ PVRSRVBridgeRGXEndTimerQuery(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeRGXQueryTimer(IMG_UINT32 ui32DispatchTableEntry,
@@ -133,7 +123,6 @@ PVRSRVBridgeRGXQueryTimer(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_RGXQUERYTIMER *psRGXQueryTimerOUT,
 					 CONNECTION_DATA *psConnection)
 {
-
 
 
 
@@ -151,11 +140,8 @@ PVRSRVBridgeRGXQueryTimer(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeRGXCurrentTime(IMG_UINT32 ui32DispatchTableEntry,
@@ -164,9 +150,8 @@ PVRSRVBridgeRGXCurrentTime(IMG_UINT32 ui32DispatchTableEntry,
 					 CONNECTION_DATA *psConnection)
 {
 
-
-
 	PVR_UNREFERENCED_PARAMETER(psRGXCurrentTimeIN);
+
 
 
 
@@ -180,11 +165,8 @@ PVRSRVBridgeRGXCurrentTime(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
-
 	return 0;
 }
-
 
 
 
@@ -226,3 +208,4 @@ PVRSRV_ERROR DeinitTIMERQUERYBridge(void)
 {
 	return PVRSRV_OK;
 }
+

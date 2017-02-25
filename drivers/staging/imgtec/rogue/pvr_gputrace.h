@@ -78,7 +78,6 @@ void PVRGpuTraceClientWork(
 void PVRGpuTraceWorkSwitch(
 		IMG_UINT64 ui64OSTimestamp,
 		const IMG_UINT32 ui32ContextId,
-		const IMG_UINT32 ui32CtxPriority,
 		const IMG_UINT32 ui32JobId,
 		const IMG_CHAR* pszWorkType,
 		PVR_GPUTRACE_SWITCH_TYPE eSwType);
@@ -92,11 +91,6 @@ void PVRGpuTraceUfo(
 		const IMG_UINT32 ui32UFOCount,
 		const RGX_HWPERF_UFO_DATA_ELEMENT *puData);
 
-void PVRGpuTraceFirmware(
-		IMG_UINT64 ui64HWTimestampInOSTime,
-		const IMG_CHAR* pszWorkType,
-		PVR_GPUTRACE_SWITCH_TYPE eSwType);
-
 void PVRGpuTraceEventsLost(
 		const RGX_HWPERF_STREAM_ID eStreamId,
 		const IMG_UINT32 ui32LastOrdinal,
@@ -106,8 +100,7 @@ void PVRGpuTraceEventsLost(
  * This function creates debugfs entry and initialises some necessary
  * structures. */
 PVRSRV_ERROR PVRGpuTraceInit(PVRSRV_DEVICE_NODE *psDeviceNode);
-
-void PVRGpuTraceDeInit(PVRSRV_DEVICE_NODE *psDeviceNode);
+void PVRGpuTraceDeInit(void);
 
 IMG_BOOL PVRGpuTraceEnabled(void);
 void PVRGpuTraceSetEnabled(IMG_BOOL bEnabled);
@@ -118,8 +111,5 @@ void PVRGpuTraceSetPreEnabled(IMG_BOOL bEnabled);
 
 void PVRGpuTraceEnableUfoCallback(void);
 void PVRGpuTraceDisableUfoCallback(void);
-
-void PVRGpuTraceEnableFirmwareActivityCallback(void);
-void PVRGpuTraceDisableFirmwareActivityCallback(void);
 
 #endif /* PVR_GPUTRACE_H_ */

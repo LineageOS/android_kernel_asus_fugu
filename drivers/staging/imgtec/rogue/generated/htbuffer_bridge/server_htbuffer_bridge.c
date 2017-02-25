@@ -64,9 +64,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "lock.h"
 
 
-#if !defined(EXCLUDE_HTBUFFER_BRIDGE)
-
-
 
 /* ***************************************************************************
  * Server-side bridge entry points
@@ -80,47 +77,31 @@ PVRSRVBridgeHTBConfigure(IMG_UINT32 ui32DispatchTableEntry,
 {
 	IMG_CHAR *uiNameInt = NULL;
 
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(psHTBConfigureIN->ui32NameSize * sizeof(IMG_CHAR)) +
-			0;
-
-
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 
 
 
-	if (ui32BufferSize != 0)
+	if (psHTBConfigureIN->ui32NameSize != 0)
 	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
+		uiNameInt = OSAllocMemNoStats(psHTBConfigureIN->ui32NameSize * sizeof(IMG_CHAR));
+		if (!uiNameInt)
 		{
 			psHTBConfigureOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
 			goto HTBConfigure_exit;
 		}
 	}
 
-	if (psHTBConfigureIN->ui32NameSize != 0)
-	{
-		uiNameInt = (IMG_CHAR*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psHTBConfigureIN->ui32NameSize * sizeof(IMG_CHAR);
-	}
-
 			/* Copy the data over */
-			if (psHTBConfigureIN->ui32NameSize * sizeof(IMG_CHAR) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psHTBConfigureIN->puiName, psHTBConfigureIN->ui32NameSize * sizeof(IMG_CHAR))
+				|| (OSCopyFromUser(NULL, uiNameInt, psHTBConfigureIN->puiName,
+				psHTBConfigureIN->ui32NameSize * sizeof(IMG_CHAR)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psHTBConfigureIN->puiName, psHTBConfigureIN->ui32NameSize * sizeof(IMG_CHAR))
-					|| (OSCopyFromUser(NULL, uiNameInt, psHTBConfigureIN->puiName,
-					psHTBConfigureIN->ui32NameSize * sizeof(IMG_CHAR)) != PVRSRV_OK) )
-				{
-					psHTBConfigureOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psHTBConfigureOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto HTBConfigure_exit;
-				}
+				goto HTBConfigure_exit;
 			}
+
 
 
 	psHTBConfigureOUT->eError =
@@ -133,18 +114,11 @@ PVRSRVBridgeHTBConfigure(IMG_UINT32 ui32DispatchTableEntry,
 
 
 HTBConfigure_exit:
-
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
+	if (uiNameInt)
+		OSFreeMemNoStats(uiNameInt);
 
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeHTBControl(IMG_UINT32 ui32DispatchTableEntry,
@@ -154,47 +128,31 @@ PVRSRVBridgeHTBControl(IMG_UINT32 ui32DispatchTableEntry,
 {
 	IMG_UINT32 *ui32GroupEnableInt = NULL;
 
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(psHTBControlIN->ui32NumGroups * sizeof(IMG_UINT32)) +
-			0;
-
-
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 
 
 
-	if (ui32BufferSize != 0)
+	if (psHTBControlIN->ui32NumGroups != 0)
 	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
+		ui32GroupEnableInt = OSAllocMemNoStats(psHTBControlIN->ui32NumGroups * sizeof(IMG_UINT32));
+		if (!ui32GroupEnableInt)
 		{
 			psHTBControlOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
 			goto HTBControl_exit;
 		}
 	}
 
-	if (psHTBControlIN->ui32NumGroups != 0)
-	{
-		ui32GroupEnableInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psHTBControlIN->ui32NumGroups * sizeof(IMG_UINT32);
-	}
-
 			/* Copy the data over */
-			if (psHTBControlIN->ui32NumGroups * sizeof(IMG_UINT32) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psHTBControlIN->pui32GroupEnable, psHTBControlIN->ui32NumGroups * sizeof(IMG_UINT32))
+				|| (OSCopyFromUser(NULL, ui32GroupEnableInt, psHTBControlIN->pui32GroupEnable,
+				psHTBControlIN->ui32NumGroups * sizeof(IMG_UINT32)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psHTBControlIN->pui32GroupEnable, psHTBControlIN->ui32NumGroups * sizeof(IMG_UINT32))
-					|| (OSCopyFromUser(NULL, ui32GroupEnableInt, psHTBControlIN->pui32GroupEnable,
-					psHTBControlIN->ui32NumGroups * sizeof(IMG_UINT32)) != PVRSRV_OK) )
-				{
-					psHTBControlOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psHTBControlOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto HTBControl_exit;
-				}
+				goto HTBControl_exit;
 			}
+
 
 
 	psHTBControlOUT->eError =
@@ -210,18 +168,11 @@ PVRSRVBridgeHTBControl(IMG_UINT32 ui32DispatchTableEntry,
 
 
 HTBControl_exit:
-
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
+	if (ui32GroupEnableInt)
+		OSFreeMemNoStats(ui32GroupEnableInt);
 
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeHTBLog(IMG_UINT32 ui32DispatchTableEntry,
@@ -231,47 +182,31 @@ PVRSRVBridgeHTBLog(IMG_UINT32 ui32DispatchTableEntry,
 {
 	IMG_UINT32 *ui32ArgsInt = NULL;
 
-	IMG_UINT32 ui32NextOffset = 0;
-	IMG_BYTE   *pArrayArgsBuffer = NULL;
-
-	IMG_UINT32 ui32BufferSize = 
-			(psHTBLogIN->ui32NumArgs * sizeof(IMG_UINT32)) +
-			0;
-
-
 	PVR_UNREFERENCED_PARAMETER(psConnection);
 
 
 
-	if (ui32BufferSize != 0)
+	if (psHTBLogIN->ui32NumArgs != 0)
 	{
-		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-		if(!pArrayArgsBuffer)
+		ui32ArgsInt = OSAllocMemNoStats(psHTBLogIN->ui32NumArgs * sizeof(IMG_UINT32));
+		if (!ui32ArgsInt)
 		{
 			psHTBLogOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+	
 			goto HTBLog_exit;
 		}
 	}
 
-	if (psHTBLogIN->ui32NumArgs != 0)
-	{
-		ui32ArgsInt = (IMG_UINT32*)(((IMG_UINT8 *)pArrayArgsBuffer) + ui32NextOffset);
-		ui32NextOffset += psHTBLogIN->ui32NumArgs * sizeof(IMG_UINT32);
-	}
-
 			/* Copy the data over */
-			if (psHTBLogIN->ui32NumArgs * sizeof(IMG_UINT32) > 0)
+			if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psHTBLogIN->pui32Args, psHTBLogIN->ui32NumArgs * sizeof(IMG_UINT32))
+				|| (OSCopyFromUser(NULL, ui32ArgsInt, psHTBLogIN->pui32Args,
+				psHTBLogIN->ui32NumArgs * sizeof(IMG_UINT32)) != PVRSRV_OK) )
 			{
-				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psHTBLogIN->pui32Args, psHTBLogIN->ui32NumArgs * sizeof(IMG_UINT32))
-					|| (OSCopyFromUser(NULL, ui32ArgsInt, psHTBLogIN->pui32Args,
-					psHTBLogIN->ui32NumArgs * sizeof(IMG_UINT32)) != PVRSRV_OK) )
-				{
-					psHTBLogOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
+				psHTBLogOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
-					goto HTBLog_exit;
-				}
+				goto HTBLog_exit;
 			}
+
 
 
 	psHTBLogOUT->eError =
@@ -286,18 +221,11 @@ PVRSRVBridgeHTBLog(IMG_UINT32 ui32DispatchTableEntry,
 
 
 HTBLog_exit:
-
-
-	/* Allocated space should be equal to the last updated offset */
-	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
-
-	if(pArrayArgsBuffer)
-		OSFreeMemNoStats(pArrayArgsBuffer);
-
+	if (ui32ArgsInt)
+		OSFreeMemNoStats(ui32ArgsInt);
 
 	return 0;
 }
-
 
 
 
@@ -307,9 +235,7 @@ HTBLog_exit:
 
 static POS_LOCK pHTBUFFERBridgeLock;
 static IMG_BOOL bUseLock = IMG_TRUE;
-#endif /* EXCLUDE_HTBUFFER_BRIDGE */
 
-#if !defined(EXCLUDE_HTBUFFER_BRIDGE)
 PVRSRV_ERROR InitHTBUFFERBridge(void);
 PVRSRV_ERROR DeinitHTBUFFERBridge(void);
 
@@ -341,14 +267,4 @@ PVRSRV_ERROR DeinitHTBUFFERBridge(void)
 	PVR_LOGR_IF_ERROR(OSLockDestroy(pHTBUFFERBridgeLock), "OSLockDestroy");
 	return PVRSRV_OK;
 }
-#else /* EXCLUDE_HTBUFFER_BRIDGE */
-/* This bridge is conditional on EXCLUDE_HTBUFFER_BRIDGE - when defined,
- * do not populate the dispatch table with its functions
- */
-#define InitHTBUFFERBridge() \
-	PVRSRV_OK
 
-#define DeinitHTBUFFERBridge() \
-	PVRSRV_OK
-
-#endif /* EXCLUDE_HTBUFFER_BRIDGE */

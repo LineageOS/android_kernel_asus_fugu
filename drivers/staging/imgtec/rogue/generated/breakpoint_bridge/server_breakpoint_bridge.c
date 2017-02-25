@@ -63,9 +63,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 
-#if !defined(EXCLUDE_BREAKPOINT_BRIDGE)
-
-
 
 /* ***************************************************************************
  * Server-side bridge entry points
@@ -77,13 +74,7 @@ PVRSRVBridgeRGXSetBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_RGXSETBREAKPOINT *psRGXSetBreakpointOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hPrivData = psRGXSetBreakpointIN->hPrivData;
 	IMG_HANDLE hPrivDataInt = NULL;
-
-
-
-
-
 
 
 
@@ -96,14 +87,14 @@ PVRSRVBridgeRGXSetBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 					psRGXSetBreakpointOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &hPrivDataInt,
-											hPrivData,
-											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA,
-											IMG_TRUE);
+											psRGXSetBreakpointIN->hPrivData,
+											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
 					if(psRGXSetBreakpointOUT->eError != PVRSRV_OK)
 					{
 						goto RGXSetBreakpoint_exit;
 					}
 				}
+
 
 	psRGXSetBreakpointOUT->eError =
 		PVRSRVRGXSetBreakpointKM(psConnection, OSGetDevData(psConnection),
@@ -118,25 +109,8 @@ PVRSRVBridgeRGXSetBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 
 RGXSetBreakpoint_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(hPrivDataInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hPrivData,
-											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
-						}
-				}
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeRGXClearBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
@@ -144,13 +118,7 @@ PVRSRVBridgeRGXClearBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_RGXCLEARBREAKPOINT *psRGXClearBreakpointOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hPrivData = psRGXClearBreakpointIN->hPrivData;
 	IMG_HANDLE hPrivDataInt = NULL;
-
-
-
-
-
 
 
 
@@ -163,14 +131,14 @@ PVRSRVBridgeRGXClearBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 					psRGXClearBreakpointOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &hPrivDataInt,
-											hPrivData,
-											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA,
-											IMG_TRUE);
+											psRGXClearBreakpointIN->hPrivData,
+											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
 					if(psRGXClearBreakpointOUT->eError != PVRSRV_OK)
 					{
 						goto RGXClearBreakpoint_exit;
 					}
 				}
+
 
 	psRGXClearBreakpointOUT->eError =
 		PVRSRVRGXClearBreakpointKM(psConnection, OSGetDevData(psConnection),
@@ -181,25 +149,8 @@ PVRSRVBridgeRGXClearBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 
 RGXClearBreakpoint_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(hPrivDataInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hPrivData,
-											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
-						}
-				}
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeRGXEnableBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
@@ -207,13 +158,7 @@ PVRSRVBridgeRGXEnableBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_RGXENABLEBREAKPOINT *psRGXEnableBreakpointOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hPrivData = psRGXEnableBreakpointIN->hPrivData;
 	IMG_HANDLE hPrivDataInt = NULL;
-
-
-
-
-
 
 
 
@@ -226,14 +171,14 @@ PVRSRVBridgeRGXEnableBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 					psRGXEnableBreakpointOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &hPrivDataInt,
-											hPrivData,
-											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA,
-											IMG_TRUE);
+											psRGXEnableBreakpointIN->hPrivData,
+											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
 					if(psRGXEnableBreakpointOUT->eError != PVRSRV_OK)
 					{
 						goto RGXEnableBreakpoint_exit;
 					}
 				}
+
 
 	psRGXEnableBreakpointOUT->eError =
 		PVRSRVRGXEnableBreakpointKM(psConnection, OSGetDevData(psConnection),
@@ -244,25 +189,8 @@ PVRSRVBridgeRGXEnableBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 
 RGXEnableBreakpoint_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(hPrivDataInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hPrivData,
-											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
-						}
-				}
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeRGXDisableBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
@@ -270,13 +198,7 @@ PVRSRVBridgeRGXDisableBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_RGXDISABLEBREAKPOINT *psRGXDisableBreakpointOUT,
 					 CONNECTION_DATA *psConnection)
 {
-	IMG_HANDLE hPrivData = psRGXDisableBreakpointIN->hPrivData;
 	IMG_HANDLE hPrivDataInt = NULL;
-
-
-
-
-
 
 
 
@@ -289,14 +211,14 @@ PVRSRVBridgeRGXDisableBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 					psRGXDisableBreakpointOUT->eError =
 						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &hPrivDataInt,
-											hPrivData,
-											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA,
-											IMG_TRUE);
+											psRGXDisableBreakpointIN->hPrivData,
+											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
 					if(psRGXDisableBreakpointOUT->eError != PVRSRV_OK)
 					{
 						goto RGXDisableBreakpoint_exit;
 					}
 				}
+
 
 	psRGXDisableBreakpointOUT->eError =
 		PVRSRVRGXDisableBreakpointKM(psConnection, OSGetDevData(psConnection),
@@ -307,25 +229,8 @@ PVRSRVBridgeRGXDisableBreakpoint(IMG_UINT32 ui32DispatchTableEntry,
 
 RGXDisableBreakpoint_exit:
 
-
-
-
-
-
-				{
-					/* Unreference the previously looked up handle */
-						if(hPrivDataInt)
-						{
-							PVRSRVReleaseHandle(psConnection->psHandleBase,
-											hPrivData,
-											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
-						}
-				}
-
-
 	return 0;
 }
-
 
 static IMG_INT
 PVRSRVBridgeRGXOverallocateBPRegisters(IMG_UINT32 ui32DispatchTableEntry,
@@ -333,7 +238,6 @@ PVRSRVBridgeRGXOverallocateBPRegisters(IMG_UINT32 ui32DispatchTableEntry,
 					  PVRSRV_BRIDGE_OUT_RGXOVERALLOCATEBPREGISTERS *psRGXOverallocateBPRegistersOUT,
 					 CONNECTION_DATA *psConnection)
 {
-
 
 
 
@@ -350,11 +254,8 @@ PVRSRVBridgeRGXOverallocateBPRegisters(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
-
 	return 0;
 }
-
 
 
 
@@ -363,9 +264,7 @@ PVRSRVBridgeRGXOverallocateBPRegisters(IMG_UINT32 ui32DispatchTableEntry,
  */
 
 static IMG_BOOL bUseLock = IMG_TRUE;
-#endif /* EXCLUDE_BREAKPOINT_BRIDGE */
 
-#if !defined(EXCLUDE_BREAKPOINT_BRIDGE)
 PVRSRV_ERROR InitBREAKPOINTBridge(void);
 PVRSRV_ERROR DeinitBREAKPOINTBridge(void);
 
@@ -401,14 +300,4 @@ PVRSRV_ERROR DeinitBREAKPOINTBridge(void)
 {
 	return PVRSRV_OK;
 }
-#else /* EXCLUDE_BREAKPOINT_BRIDGE */
-/* This bridge is conditional on EXCLUDE_BREAKPOINT_BRIDGE - when defined,
- * do not populate the dispatch table with its functions
- */
-#define InitBREAKPOINTBridge() \
-	PVRSRV_OK
 
-#define DeinitBREAKPOINTBridge() \
-	PVRSRV_OK
-
-#endif /* EXCLUDE_BREAKPOINT_BRIDGE */

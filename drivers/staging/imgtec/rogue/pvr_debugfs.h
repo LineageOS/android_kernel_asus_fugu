@@ -69,29 +69,28 @@ int PVRDebugFSInit(void);
 void PVRDebugFSDeInit(void);
 
 int PVRDebugFSCreateEntryDir(IMG_CHAR *pszName,
- 	 	 	     PVR_DEBUGFS_DIR_DATA *psParentDir,
-			     PVR_DEBUGFS_DIR_DATA **ppsNewDir);
+				 	 	 	 PVR_DEBUGFS_DIR_DATA *psParentDir,
+							 PVR_DEBUGFS_DIR_DATA **ppsNewDir);
 
 void PVRDebugFSRemoveEntryDir(PVR_DEBUGFS_DIR_DATA **ppsDir);
 
 int PVRDebugFSCreateEntry(const char *pszName,
-			  PVR_DEBUGFS_DIR_DATA *psParentDir,
-			  const struct seq_operations *psReadOps,
-			  PVRSRV_ENTRY_WRITE_FUNC *pfnWrite,
-			  PVRSRV_INC_FSENTRY_PVDATA_REFCNT_FN *pfnIncPvDataRefCnt,
-			  PVRSRV_DEC_FSENTRY_PVDATA_REFCNT_FN *pfnDecPvDataRefCnt,
-			  void *pvData,
-			  PVR_DEBUGFS_ENTRY_DATA **ppsNewEntry);
+			  	  	  	  PVR_DEBUGFS_DIR_DATA *psParentDir,
+						  struct seq_operations *psReadOps,
+						  PVRSRV_ENTRY_WRITE_FUNC *pfnWrite,
+						  PVRSRV_INC_FSENTRY_PVDATA_REFCNT_FN *pfnIncPvDataRefCnt,
+						  PVRSRV_DEC_FSENTRY_PVDATA_REFCNT_FN *pfnDecPvDataRefCnt,
+						  void *pvData,
+						  PVR_DEBUGFS_ENTRY_DATA **ppsNewEntry);
 
 void PVRDebugFSRemoveEntry(PVR_DEBUGFS_ENTRY_DATA **ppsDebugFSEntry);
 
 PVR_DEBUGFS_DRIVER_STAT *PVRDebugFSCreateStatisticEntry(const char *pszName,
-		       PVR_DEBUGFS_DIR_DATA *psDir,
-		       OS_STATS_PRINT_FUNC *pfnStatsPrint,
-		       PVRSRV_INC_STAT_MEM_REFCOUNT_FUNC *pfnIncStatMemRefCount,
-		       PVRSRV_INC_STAT_MEM_REFCOUNT_FUNC *pfnDecStatMemRefCount,
-		       void *pvData);
-
+					 	 	 	 	 	 	 	 	 	PVR_DEBUGFS_DIR_DATA *psDir,
+														OS_STATS_PRINT_FUNC *pfnStatsPrint,
+														PVRSRV_INC_STAT_MEM_REFCOUNT_FUNC *pfnIncStatMemRefCount,
+														PVRSRV_INC_STAT_MEM_REFCOUNT_FUNC *pfnDecStatMemRefCount,
+														void *pvData);
 void PVRDebugFSRemoveStatisticEntry(PVR_DEBUGFS_DRIVER_STAT *psStatEntry);
 
 #endif /* !defined(__PVR_DEBUGFS_H__) */

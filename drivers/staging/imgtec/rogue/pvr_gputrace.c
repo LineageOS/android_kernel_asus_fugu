@@ -54,6 +54,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <trace/events/gpu.h>
 #include "rogue_trace_events.h"
 
+#define KM_FTRACE_NO_PRIORITY (0)
 
 
 /******************************************************************************
@@ -212,18 +213,15 @@ void PVRGpuTraceClientWork(
 void PVRGpuTraceWorkSwitch(
 		IMG_UINT64 ui64HWTimestampInOSTime,
 		const IMG_UINT32 ui32CtxId,
-		const IMG_UINT32 ui32CtxPriority,
 		const IMG_UINT32 ui32JobId,
 		const IMG_CHAR* pszWorkType,
 		PVR_GPUTRACE_SWITCH_TYPE eSwType)
 {
 	PVR_ASSERT(pszWorkType);
 
-	/* Invert the priority cause this is what systrace expects. Lower values
-	 * convey a higher priority to systrace. */
 	trace_gpu_sched_switch(pszWorkType, ui64HWTimestampInOSTime,
 			eSwType == PVR_GPUTRACE_SWITCH_TYPE_END ? 0 : ui32CtxId,
-			2-ui32CtxPriority, ui32JobId);
+			KM_FTRACE_NO_PRIORITY, ui32JobId);
 }
 
 void PVRGpuTraceUfo(
@@ -261,14 +259,6 @@ void PVRGpuTraceUfo(
 	}
 }
 
-void PVRGpuTraceFirmware(
-		IMG_UINT64 ui64HWTimestampInOSTime,
-		const IMG_CHAR* pszWorkType,
-		PVR_GPUTRACE_SWITCH_TYPE eSwType)
-{
-	trace_rogue_firmware_activity(ui64HWTimestampInOSTime, pszWorkType, eSwType);
-}
-
 void PVRGpuTraceEventsLost(
 		const RGX_HWPERF_STREAM_ID eStreamId,
 		const IMG_UINT32 ui32LastOrdinal,
@@ -281,7 +271,7 @@ PVRSRV_ERROR PVRGpuTraceInit(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
 	PVRSRV_ERROR eError;
 
-	eError = RGXHWPerfFTraceGPUInit(psDeviceNode);
+	eError = RGXHWPerfFTraceGPUInit(psDeviceNode->pvDevice);
 	if (eError != PVRSRV_OK)
 		return eError;
 
@@ -291,20 +281,16 @@ PVRSRV_ERROR PVRGpuTraceInit(PVRSRV_DEVICE_NODE *psDeviceNode)
 	                               &gpsPVRDebugFSGpuTracingOnEntry);
 	if (eError != PVRSRV_OK)
 	{
-		RGXHWPerfFTraceGPUDeInit(psDeviceNode);
+		RGXHWPerfFTraceGPUDeInit();
 		return eError;
 	}
 
 	return PVRSRV_OK;
 }
 
-void PVRGpuTraceDeInit(PVRSRV_DEVICE_NODE *psDeviceNode)
+void PVRGpuTraceDeInit(void)
 {
-	/* gbFTraceGPUEventsEnabled and gbFTraceGPUEventsPreEnabled are cleared
-	 * in this function. */
-	PVRGpuTraceEnabledSet(IMG_FALSE);
-
-	RGXHWPerfFTraceGPUDeInit(psDeviceNode);
+	RGXHWPerfFTraceGPUDeInit();
 
 	/* Can be NULL if driver startup failed */
 	if (gpsPVRDebugFSGpuTracingOnEntry)
