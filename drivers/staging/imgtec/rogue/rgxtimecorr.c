@@ -74,15 +74,33 @@ static void _RGXMakeTimeCorrData(PVRSRV_DEVICE_NODE *psDeviceNode, IMG_BOOL bLog
 	IMG_UINT32            ui32NewSeqCount;
 	IMG_UINT32            ui32CoreClockSpeed;
 	IMG_UINT32            ui32Remainder;
+#if defined(SUPPORT_WORKLOAD_ESTIMATION)
+	IMG_UINT64            ui64OSMonoTime = 0;
+#endif
 
 	ui32CoreClockSpeed = psGpuDVFSTable->aui32DVFSClock[psGpuDVFSTable->ui32CurrentDVFSId];
+
+#if defined(SUPPORT_WORKLOAD_ESTIMATION)
+	{
+		PVRSRV_ERROR eError;
+		eError = OSClockMonotonicns64(&ui64OSMonoTime);
+		if(eError != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR,"_RGXMakeTimeCorrData: System Monotonic Clock not available."));
+			PVR_ASSERT(eError == PVRSRV_OK);
+		}
+	}
+#endif
 
 	ui32NewSeqCount = psGpuUtilFWCB->ui32TimeCorrSeqCount + 1;
 	psTimeCorr = &psGpuUtilFWCB->sTimeCorr[RGXFWIF_TIME_CORR_CURR_INDEX(ui32NewSeqCount)];
 
-	psTimeCorr->ui64CRTimeStamp    = RGXReadHWTimerReg(psDevInfo);
-	psTimeCorr->ui64OSTimeStamp    = OSClockns64();
-	psTimeCorr->ui32CoreClockSpeed = ui32CoreClockSpeed;
+	psTimeCorr->ui64CRTimeStamp     = RGXReadHWTimerReg(psDevInfo);
+	psTimeCorr->ui64OSTimeStamp     = OSClockns64();
+#if defined(SUPPORT_WORKLOAD_ESTIMATION)
+	psTimeCorr->ui64OSMonoTimeStamp = ui64OSMonoTime;
+#endif
+	psTimeCorr->ui32CoreClockSpeed  = ui32CoreClockSpeed;
 	psTimeCorr->ui32CRDeltaToOSDeltaKNs =
 	    RGXFWIF_GET_CRDELTA_TO_OSDELTA_K_NS(ui32CoreClockSpeed, ui32Remainder);
 
@@ -193,9 +211,9 @@ static IMG_UINT32 _RGXGPUFreqCalibrationCalculate(PVRSRV_DEVICE_NODE *psDeviceNo
 
 
 /*
-	RGXGPUFreqCalibratePrePowerState
+	RGXGPUFreqCalibratePrePowerOff
 */
-void RGXGPUFreqCalibratePrePowerState(IMG_HANDLE hDevHandle)
+void RGXGPUFreqCalibratePrePowerOff(IMG_HANDLE hDevHandle)
 {
 	PVRSRV_DEVICE_NODE  *psDeviceNode   = hDevHandle;
 	PVRSRV_RGXDEV_INFO  *psDevInfo      = psDeviceNode->pvDevice;
@@ -211,9 +229,9 @@ void RGXGPUFreqCalibratePrePowerState(IMG_HANDLE hDevHandle)
 
 
 /*
-	RGXGPUFreqCalibratePostPowerState
+	RGXGPUFreqCalibratePostPowerOn
 */
-void RGXGPUFreqCalibratePostPowerState(IMG_HANDLE hDevHandle)
+void RGXGPUFreqCalibratePostPowerOn(IMG_HANDLE hDevHandle)
 {
 	PVRSRV_DEVICE_NODE  *psDeviceNode      = hDevHandle;
 	PVRSRV_RGXDEV_INFO  *psDevInfo         = psDeviceNode->pvDevice;
@@ -294,7 +312,6 @@ void RGXGPUFreqCalibrateCorrelatePeriodic(IMG_HANDLE hDevHandle)
 	PVRSRV_DEVICE_NODE     *psDeviceNode   = hDevHandle;
 	PVRSRV_RGXDEV_INFO     *psDevInfo      = psDeviceNode->pvDevice;
 	RGX_GPU_DVFS_TABLE     *psGpuDVFSTable = psDevInfo->psGpuDVFSTable;
-	PVRSRV_DATA            *psPVRSRVData;
 	IMG_UINT64             ui64TimeNow     = OSClockus64();
 	PVRSRV_DEV_POWER_STATE ePowerState;
 
@@ -302,16 +319,16 @@ void RGXGPUFreqCalibrateCorrelatePeriodic(IMG_HANDLE hDevHandle)
 	if((ui64TimeNow - psGpuDVFSTable->ui64CalibrationOSTimestamp) < psGpuDVFSTable->ui32CalibrationPeriod) return;
 
 	/* Try to acquire the powerlock, if not possible then don't wait */
-	psPVRSRVData     = PVRSRVGetPVRSRVData();
-	if (OSLockIsLocked(psPVRSRVData->hPowerLock)) return; /* Better to not wait here if possible */
-	/* There's a chance that the powerlock could be taken here, it's not that bad even if not desirable */
-	if (PVRSRVPowerLock() != PVRSRV_OK) return;
+	if (OSLockIsLocked(psDeviceNode->hPowerLock)) return; /* Better to not wait here if possible */
+	/* There's a chance that the powerlock could be taken here, it's not that bad even if not desirable
+	   (TODO use OSTryLockAcquire, currently implemented under Linux only) */
+	if (PVRSRVPowerLock(psDeviceNode) != PVRSRV_OK) return;
 
 	/* If the GPU is off then we can't do anything */
-	PVRSRVGetDevicePowerState(psDeviceNode->sDevId.ui32DeviceIndex, &ePowerState);
+	PVRSRVGetDevicePowerState(psDeviceNode, &ePowerState);
 	if (ePowerState != PVRSRV_DEV_POWER_STATE_ON)
 	{
-		PVRSRVPowerUnlock();
+		PVRSRVPowerUnlock(psDeviceNode);
 		return;
 	}
 
@@ -321,7 +338,7 @@ void RGXGPUFreqCalibrateCorrelatePeriodic(IMG_HANDLE hDevHandle)
 	_RGXGPUFreqCalibrationPeriodStart(psDeviceNode, psGpuDVFSTable);
 	_RGXMakeTimeCorrData(psDeviceNode, IMG_TRUE);
 
-	PVRSRVPowerUnlock();
+	PVRSRVPowerUnlock(psDeviceNode);
 }
 
 

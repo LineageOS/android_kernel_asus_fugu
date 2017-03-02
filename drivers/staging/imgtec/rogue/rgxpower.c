@@ -50,11 +50,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvr_debug.h"
 #include "osfunc.h"
 #include "rgxdebug.h"
+#include "devicemem.h"
 #include "devicemem_pdump.h"
 #include "rgxtimecorr.h"
 #include "devicemem_utils.h"
 #include "htbserver.h"
 #include "rgxstartstop.h"
+#include "sync.h"
+#include "lists.h"
 
 #if defined(PVRSRV_ENABLE_PROCESS_STATS)
 #include "process_stats.h"
@@ -62,8 +65,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if defined(PVR_DVFS)
 #include "pvr_dvfs_device.h"
 #endif
-
-extern IMG_UINT32 g_ui32HostSampleIRQCount;
 
 
 static void _RGXUpdateGPUUtilStats(PVRSRV_RGXDEV_INFO *psDevInfo)
@@ -95,11 +96,11 @@ static void _RGXUpdateGPUUtilStats(PVRSRV_RGXDEV_INFO *psDevInfo)
 }
 
 
-static PVRSRV_ERROR RGXDoStop(PVRSRV_DEVICE_NODE *psDeviceNode)
+static INLINE PVRSRV_ERROR RGXDoStop(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
 	PVRSRV_ERROR eError;
 
-#if defined(SUPPORT_TRUSTED_DEVICE)
+#if defined(SUPPORT_TRUSTED_DEVICE) && !defined(NO_HARDWARE)
 	PVRSRV_DEVICE_CONFIG *psDevConfig = psDeviceNode->psDevConfig;
 
 	if (psDevConfig->pfnTDRGXStop == NULL)
@@ -108,7 +109,7 @@ static PVRSRV_ERROR RGXDoStop(PVRSRV_DEVICE_NODE *psDeviceNode)
 		return PVRSRV_ERROR_NOT_IMPLEMENTED;
 	}
 
-	eError = psDevConfig->pfnTDRGXStop();
+	eError = psDevConfig->pfnTDRGXStop(psDevConfig->hSysData);
 #else
 	PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
 
@@ -135,28 +136,29 @@ PVRSRV_ERROR RGXPrePowerState (IMG_HANDLE				hDevHandle,
 		PVRSRV_RGXDEV_INFO	*psDevInfo = psDeviceNode->pvDevice;
 		RGXFWIF_KCCB_CMD	sPowCmd;
 		RGXFWIF_TRACEBUF	*psFWTraceBuf = psDevInfo->psRGXFWIfTraceBuf;
-		IMG_UINT32			ui32DM;
 
 		/* Send the Power off request to the FW */
 		sPowCmd.eCmdType = RGXFWIF_KCCB_CMD_POW;
 		sPowCmd.uCmdData.sPowData.ePowType = RGXFWIF_POW_OFF_REQ;
 		sPowCmd.uCmdData.sPowData.uPoweReqData.bForced = bForced;
 
-		SyncPrimSet(psDevInfo->psPowSyncPrim, 0);
-
-		/* Send one pow command to each DM to make sure we flush all the DMs pipelines */
-		for (ui32DM = 0; ui32DM < RGXFWIF_DM_MAX; ui32DM++)
+		eError = SyncPrimSet(psDevInfo->psPowSyncPrim, 0);
+		if (eError != PVRSRV_OK)
 		{
-			eError = RGXSendCommand(psDevInfo,
-					ui32DM,
-					&sPowCmd,
-					sizeof(sPowCmd),
-					0);
-			if (eError != PVRSRV_OK)
-			{
-				PVR_DPF((PVR_DBG_ERROR,"RGXPrePowerState: Failed to send Power off request for DM%d", ui32DM));
-				return eError;
-			}
+			PVR_DPF((PVR_DBG_ERROR,"%s: Failed to set Power sync prim",
+				__FUNCTION__));
+			return eError;
+		}
+
+		eError = RGXSendCommand(psDevInfo,
+		                        RGXFWIF_DM_GP,
+		                        &sPowCmd,
+		                        sizeof(sPowCmd),
+		                        PDUMP_FLAGS_NONE);
+		if (eError != PVRSRV_OK)
+		{
+			PVR_DPF((PVR_DBG_ERROR,"RGXPrePowerState: Failed to send Power off request"));
+			return eError;
 		}
 
 		/* Wait for the firmware to complete processing. It cannot use PVRSRVWaitForValueKM as it relies 
@@ -170,23 +172,30 @@ PVRSRV_ERROR RGXPrePowerState (IMG_HANDLE				hDevHandle,
 			if (psFWTraceBuf->ePowState == RGXFWIF_POW_OFF)
 			{
 #if !defined(NO_HARDWARE)
-				/* Wait for the pending META/MIPS to host interrupts to come back. */
-				eError = PVRSRVPollForValueKM(&g_ui32HostSampleIRQCount,
-									          psDevInfo->psRGXFWIfTraceBuf->ui32InterruptCount,
-									          0xffffffff);
-
-				if (eError != PVRSRV_OK)
+				IMG_UINT32 ui32TID;
+				for (ui32TID = 0; ui32TID < RGXFW_THREAD_NUM; ui32TID++)
 				{
-					PVR_DPF((PVR_DBG_ERROR,"RGXPrePowerState: Wait for pending interrupts failed. Host:%d, FW: %d",
-					g_ui32HostSampleIRQCount,
-					psDevInfo->psRGXFWIfTraceBuf->ui32InterruptCount));
+					/* Wait for the pending META/MIPS to host interrupts to come back. */
+					eError = PVRSRVPollForValueKM(&psDevInfo->aui32SampleIRQCount[ui32TID],
+										          psFWTraceBuf->aui32InterruptCount[ui32TID],
+										          0xffffffff);
 
-					RGX_WaitForInterruptsTimeout(psDevInfo);
+					if (eError != PVRSRV_OK)
+					{
+						PVR_DPF((PVR_DBG_ERROR, \
+								"RGXPrePowerState: Wait for pending interrupts failed. Thread %u: Host:%u, FW: %u", \
+								ui32TID, \
+								psDevInfo->aui32SampleIRQCount[ui32TID], \
+								psFWTraceBuf->aui32InterruptCount[ui32TID]));
+
+						RGX_WaitForInterruptsTimeout(psDevInfo);
+						break;
+					}
 				}
 #endif /* NO_HARDWARE */
 
 				/* Update GPU frequency and timer correlation related data */
-				RGXGPUFreqCalibratePrePowerState(psDeviceNode);
+				RGXGPUFreqCalibratePrePowerOff(psDeviceNode);
 
 				/* Update GPU state counters */
 				_RGXUpdateGPUUtilStats(psDevInfo);
@@ -195,7 +204,7 @@ PVRSRV_ERROR RGXPrePowerState (IMG_HANDLE				hDevHandle,
 				eError = SuspendDVFS();
 				if (eError != PVRSRV_OK)
 				{
-					PVR_DPF((PVR_DBG_ERROR,"RGXPostPowerState: Failed to suspend DVFS"));
+					PVR_DPF((PVR_DBG_ERROR,"RGXPrePowerState: Failed to suspend DVFS"));
 					return eError;
 				}
 #endif
@@ -242,7 +251,7 @@ static INLINE PVRSRV_ERROR RGXDoStart(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
 	PVRSRV_ERROR eError;
 
-#if defined(SUPPORT_TRUSTED_DEVICE)
+#if defined(SUPPORT_TRUSTED_DEVICE) && !defined(NO_HARDWARE)
 	PVRSRV_DEVICE_CONFIG *psDevConfig = psDeviceNode->psDevConfig;
 
 	if (psDevConfig->pfnTDRGXStart == NULL)
@@ -251,7 +260,7 @@ static INLINE PVRSRV_ERROR RGXDoStart(PVRSRV_DEVICE_NODE *psDeviceNode)
 		return PVRSRV_ERROR_NOT_IMPLEMENTED;
 	}
 
-	eError = psDevConfig->pfnTDRGXStart();
+	eError = psDevConfig->pfnTDRGXStart(psDevConfig->hSysData);
 #else
 	PVRSRV_RGXDEV_INFO *psDevInfo = psDeviceNode->pvDevice;
 
@@ -280,14 +289,11 @@ PVRSRV_ERROR RGXPostPowerState (IMG_HANDLE				hDevHandle,
 		if (eCurrentPowerState == PVRSRV_DEV_POWER_STATE_OFF)
 		{
 			/* Update GPU frequency and timer correlation related data */
-			RGXGPUFreqCalibratePostPowerState(psDeviceNode);
+			RGXGPUFreqCalibratePostPowerOn(psDeviceNode);
 
 			/* Update GPU state counters */
 			_RGXUpdateGPUUtilStats(psDevInfo);
 
-			/*
-			 * Perform GPU reset and initialisation
-			 */
 			eError = RGXDoStart(psDeviceNode);
 			if (eError != PVRSRV_OK)
 			{
@@ -321,6 +327,28 @@ PVRSRV_ERROR RGXPostPowerState (IMG_HANDLE				hDevHandle,
 			{
 				PVR_DPF((PVR_DBG_ERROR, "RGXPostPowerState: Polling for 'FW started' flag failed."));
 				eError = PVRSRV_ERROR_TIMEOUT;
+
+				/*
+				 * When bFirmwareStarted fails some info maybe gained by doing the following
+				 * debug dump but unfortunately it could lockup some cores or cause other power
+				 * lock issues. The code is placed here to provide a possible example approach
+				 * when all other ideas have been tried.
+				 */
+				/*{
+					PVRSRV_POWER_DEV *psPowerDev = psDeviceNode->psPowerDev;
+				
+					if (psPowerDev)
+					{
+						PVRSRV_DEV_POWER_STATE  eOldPowerState = psPowerDev->eCurrentPowerState;
+
+						PVRSRVPowerUnlock(psDeviceNode);
+						psPowerDev->eCurrentPowerState = PVRSRV_DEV_POWER_STATE_ON;
+						RGXDumpDebugInfo(NULL, psDeviceNode->pvDevice);
+						psPowerDev->eCurrentPowerState = eOldPowerState;
+						PVRSRVPowerLock(psDeviceNode);
+					}
+				}*/
+				
 				DevmemReleaseCpuVirtAddr(psDevInfo->psRGXFWIfInitMemDesc);
 				return eError;
 			}
@@ -435,7 +463,7 @@ PVRSRV_ERROR RGXPostClockSpeedChange (IMG_HANDLE				hDevHandle,
 		                           RGXFWIF_DM_GP,
 		                           &sCOREClkSpeedChangeCmd,
 		                           sizeof(sCOREClkSpeedChangeCmd),
-		                           0);
+		                           PDUMP_FLAGS_NONE);
 		PDUMPPOWCMDEND();
 
 		if (eError != PVRSRV_OK)
@@ -476,7 +504,7 @@ PVRSRV_ERROR RGXDustCountChange(IMG_HANDLE				hDevHandle,
 	PVRSRV_RGXDEV_INFO	*psDevInfo = psDeviceNode->pvDevice;
 	PVRSRV_ERROR		eError;
 	RGXFWIF_KCCB_CMD 	sDustCountChange;
-	IMG_UINT32			ui32MaxAvailableDusts = MAX(1, RGX_FEATURE_NUM_CLUSTERS/2);
+	IMG_UINT32			ui32MaxAvailableDusts = MAX(1, (psDevInfo->sDevFeatureCfg.ui32NumClusters/2));
 	RGXFWIF_RUNTIME_CFG *psRuntimeCfg = psDevInfo->psRGXFWIfRuntimeCfg;
 
 	if (ui32NumberOfDusts > ui32MaxAvailableDusts)
@@ -489,6 +517,25 @@ PVRSRV_ERROR RGXDustCountChange(IMG_HANDLE				hDevHandle,
 				eError));
 		return eError;
 	}
+
+	#if defined(FIX_HW_BRN_59042)
+	if (ui32NumberOfDusts < ui32MaxAvailableDusts && (ui32NumberOfDusts & 0x1))
+	{
+		PVR_DPF((PVR_DBG_ERROR,
+				"RGXDustCountChange: Invalid number of DUSTs (%u) due to HW restriction. Allowed values are :-",
+				ui32NumberOfDusts));
+		switch (ui32MaxAvailableDusts)
+		{
+			case 2:	PVR_DPF((PVR_DBG_ERROR, "0, 2")); break;
+			case 3:	PVR_DPF((PVR_DBG_ERROR, "0, 2, 3")); break;
+			case 4:	PVR_DPF((PVR_DBG_ERROR, "0, 2, 4")); break;
+			case 5:	PVR_DPF((PVR_DBG_ERROR, "0, 2, 4, 5")); break;
+			case 6:	PVR_DPF((PVR_DBG_ERROR, "0, 2, 4, 6")); break;
+			default: break;
+		}
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+	#endif
 
 	psRuntimeCfg->ui32DefaultDustsNumInit = ui32NumberOfDusts;
 
@@ -510,7 +557,13 @@ PVRSRV_ERROR RGXDustCountChange(IMG_HANDLE				hDevHandle,
 	}
 	#endif
 
-	SyncPrimSet(psDevInfo->psPowSyncPrim, 0);
+	eError = SyncPrimSet(psDevInfo->psPowSyncPrim, 0);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"%s: Failed to set Power sync prim",
+			__FUNCTION__));
+		return eError;
+	}
 
 	sDustCountChange.eCmdType = RGXFWIF_KCCB_CMD_POW;
 	sDustCountChange.uCmdData.sPowData.ePowType = RGXFWIF_POW_NUMDUST_CHANGE;
@@ -521,7 +574,7 @@ PVRSRV_ERROR RGXDustCountChange(IMG_HANDLE				hDevHandle,
 				RGXFWIF_DM_GP,
 				&sDustCountChange,
 				sizeof(sDustCountChange),
-				0);
+				PDUMP_FLAGS_NONE);
 
 	if (eError != PVRSRV_OK)
 	{
@@ -565,7 +618,7 @@ PVRSRV_ERROR RGXAPMLatencyChange(IMG_HANDLE				hDevHandle,
 	RGXFWIF_RUNTIME_CFG	*psRuntimeCfg = psDevInfo->psRGXFWIfRuntimeCfg;
 	PVRSRV_DEV_POWER_STATE	ePowerState;
 
-	eError = PVRSRVPowerLock();
+	eError = PVRSRVPowerLock(psDeviceNode);
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"RGXAPMLatencyChange: Failed to acquire power lock"));
@@ -576,7 +629,7 @@ PVRSRV_ERROR RGXAPMLatencyChange(IMG_HANDLE				hDevHandle,
 	psRuntimeCfg->ui32ActivePMLatencyms = ui32ActivePMLatencyms;
 	psRuntimeCfg->bActivePMLatencyPersistant = bActivePMLatencyPersistant;
 
-	eError = PVRSRVGetDevicePowerState(psDeviceNode->sDevId.ui32DeviceIndex, &ePowerState);
+	eError = PVRSRVGetDevicePowerState(psDeviceNode, &ePowerState);
 
 	if ((eError == PVRSRV_OK) && (ePowerState != PVRSRV_DEV_POWER_STATE_OFF))
 	{
@@ -593,7 +646,7 @@ PVRSRV_ERROR RGXAPMLatencyChange(IMG_HANDLE				hDevHandle,
 					RGXFWIF_DM_GP,
 					&sActivePMLatencyChange,
 					sizeof(sActivePMLatencyChange),
-					0);
+					PDUMP_FLAGS_NONE);
 
 		if (eError != PVRSRV_OK)
 		{
@@ -603,7 +656,7 @@ PVRSRV_ERROR RGXAPMLatencyChange(IMG_HANDLE				hDevHandle,
 		}
 	}
 
-	PVRSRVPowerUnlock();
+	PVRSRVPowerUnlock(psDeviceNode);
 
 	return PVRSRV_OK;
 }
@@ -626,12 +679,12 @@ PVRSRV_ERROR RGXActivePowerRequest(IMG_HANDLE hDevHandle)
 
 	/* Powerlock to avoid further requests from racing with the FW hand-shake from now on
 	   (previous kicks to this point are detected by the FW) */
-	eError = PVRSRVPowerLock();
+	eError = PVRSRVPowerLock(psDeviceNode);
 	if(eError != PVRSRV_OK)
 	{
-		PVR_DPF((PVR_DBG_ERROR,"RGXActivePowerRequest: Failed to acquire PowerLock (device index: %d, error: %s)", 
-					psDeviceNode->sDevId.ui32DeviceIndex,
-					PVRSRVGetErrorStringKM(eError)));
+		PVR_DPF((PVR_DBG_ERROR,
+				 "%s: Failed to acquire PowerLock (device: %p, error: %s)",
+				 __func__, psDeviceNode, PVRSRVGetErrorStringKM(eError)));
 		goto _RGXActivePowerRequest_PowerLock_failed;
 	}
 
@@ -646,10 +699,9 @@ PVRSRV_ERROR RGXActivePowerRequest(IMG_HANDLE hDevHandle)
 #endif
 
 		PDUMPPOWCMDSTART();
-		eError = 
-			PVRSRVSetDevicePowerStateKM(psDeviceNode->sDevId.ui32DeviceIndex,
-					PVRSRV_DEV_POWER_STATE_OFF,
-					IMG_FALSE); /* forced */
+		eError = PVRSRVSetDevicePowerStateKM(psDeviceNode,
+											 PVRSRV_DEV_POWER_STATE_OFF,
+											 IMG_FALSE); /* forced */
 		PDUMPPOWCMDEND();
 
 		if (eError == PVRSRV_OK)
@@ -663,7 +715,7 @@ PVRSRV_ERROR RGXActivePowerRequest(IMG_HANDLE hDevHandle)
 
 	}
 
-	PVRSRVPowerUnlock();
+	PVRSRVPowerUnlock(psDeviceNode);
 
 _RGXActivePowerRequest_PowerLock_failed:
 	OSReleaseBridgeLock();
@@ -701,7 +753,13 @@ PVRSRV_ERROR RGXForcedIdleRequest(IMG_HANDLE hDevHandle, IMG_BOOL bDeviceOffPerm
 	}
 #endif
 
-	SyncPrimSet(psDevInfo->psPowSyncPrim, 0);
+	eError = SyncPrimSet(psDevInfo->psPowSyncPrim, 0);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"%s: Failed to set Power sync prim",
+			__FUNCTION__));
+		return eError;
+	}
 	sPowCmd.eCmdType = RGXFWIF_KCCB_CMD_POW;
 	sPowCmd.uCmdData.sPowData.ePowType = RGXFWIF_POW_FORCED_IDLE_REQ;
 	sPowCmd.uCmdData.sPowData.uPoweReqData.bCancelForcedIdle = IMG_FALSE;
@@ -713,7 +771,7 @@ PVRSRV_ERROR RGXForcedIdleRequest(IMG_HANDLE hDevHandle, IMG_BOOL bDeviceOffPerm
 			RGXFWIF_DM_GP,
 			&sPowCmd,
 			sizeof(sPowCmd),
-			0);
+			PDUMP_FLAGS_NONE);
 
 	if (eError != PVRSRV_OK)
 	{
@@ -771,7 +829,13 @@ PVRSRV_ERROR RGXCancelForcedIdleRequest(IMG_HANDLE hDevHandle)
 	RGXFWIF_KCCB_CMD	sPowCmd;
 	PVRSRV_ERROR		eError = PVRSRV_OK;
 
-	SyncPrimSet(psDevInfo->psPowSyncPrim, 0);
+	eError = SyncPrimSet(psDevInfo->psPowSyncPrim, 0);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"%s: Failed to set Power sync prim",
+			__FUNCTION__));
+		goto ErrorExit;
+	}
 
 	/* Send the IDLE request to the FW */
 	sPowCmd.eCmdType = RGXFWIF_KCCB_CMD_POW;
@@ -785,7 +849,7 @@ PVRSRV_ERROR RGXCancelForcedIdleRequest(IMG_HANDLE hDevHandle)
 			RGXFWIF_DM_GP,
 			&sPowCmd,
 			sizeof(sPowCmd),
-			0);
+			PDUMP_FLAGS_NONE);
 
 	if (eError != PVRSRV_OK)
 	{

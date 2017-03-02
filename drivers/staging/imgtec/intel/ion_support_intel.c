@@ -106,18 +106,13 @@ static int DCHeapAllocate(struct ion_heap *psHeap,
 	PVR_UNREFERENCED_PARAMETER(ulAlign);
 	PVR_UNREFERENCED_PARAMETER(ulFlags);
 
-	/* It's not really correct to hijack the PMR lock like this, but this
-	 * seems better than relying on the bridge lock since that could be
-	 * taken around a call to ion_alloc(). The PMR lock being held around
-	 * a call to ion_alloc() is much less likely.
-	 */
-	if (!PMRIsLockedByMe() || !gpsDCBufferPMR)
+	if (!gpsDCBufferPMR)
 	{
 		err = -ENOTTY;
 		goto err_out;
 	}
 
-	eError = PMRLockSysPhysAddresses(gpsDCBufferPMR, PAGE_SHIFT);
+	eError = PMRLockSysPhysAddresses(gpsDCBufferPMR);
 	if (eError != PVRSRV_OK)
 	{
 		err = -EFAULT;
@@ -327,7 +322,7 @@ static long IonCustomIoctl(struct ion_client *psClient,
 	IMG_DEVMEM_SIZE_T uSize;
 	struct file *psFile;
 	PVRSRV_ERROR eError;
-	DC_BUFFER *psBuffer;
+	DC_BUFFER *psBuffer = NULL;
 	int err = -EFAULT;
 
 	if (uiCmd != ION_IOC_ALLOC_FROM_DC_BUFFER)
@@ -358,11 +353,12 @@ static long IonCustomIoctl(struct ion_client *psClient,
 	eError = PVRSRVLookupHandle(psConnection->psHandleBase,
 								(void **)&psBuffer,
 								(IMG_HANDLE)sData.dc_buffer,
-								PVRSRV_HANDLE_TYPE_DC_BUFFER);
+								PVRSRV_HANDLE_TYPE_DC_BUFFER,
+								IMG_TRUE);
 	if (eError != PVRSRV_OK)
+	{
 		goto err_unlock;
-
-	PMRLock();
+	}
 
 	eError = DCBufferAcquire(psBuffer, &gpsDCBufferPMR);
 	if (eError != PVRSRV_OK)
@@ -393,9 +389,14 @@ static long IonCustomIoctl(struct ion_client *psClient,
 	err = 0;
 err_unlock_pmr:
 	DCBufferRelease(gpsDCBufferPMR);
-	PMRUnlock();
 	gpsDCBufferPMR = NULL;
 err_unlock:
+	if(psBuffer)
+	{
+		PVRSRVReleaseHandle(psConnection->psHandleBase,
+							(IMG_HANDLE)sData.dc_buffer,
+							PVRSRV_HANDLE_TYPE_DC_BUFFER);
+	}
 	OSReleaseBridgeLock();
 err_fput:
 	fput(psFile);

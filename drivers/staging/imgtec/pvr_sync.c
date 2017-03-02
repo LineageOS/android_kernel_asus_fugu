@@ -1,6 +1,9 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; tab-width: 8 -*- */
+/* vi: set ts=8 sw=8 sts=8: */
 /*************************************************************************/ /*!
 @File           pvr_sync.c
 @Title          Kernel driver for Android's sync mechanism
+@Codingstyle    LinuxKernel
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
 @License        Dual MIT/GPLv2
 
@@ -39,7 +42,6 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
-/* vi: set ts=8: */
 
 #include "pvr_sync.h"
 #include "pvr_fd_sync_kernel.h"
@@ -66,15 +68,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 #endif
 
-/*
- * get_unused_fd was first removed from vanilla kernels in 3.19 and
- * get_unused_fd_flags was first exported from vanilla kernels in 3.7.
- */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
-#define get_unused_fd() get_unused_fd_flags(0)
-#endif
+#include "kernel_compatibility.h"
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0))
 
 static inline struct sync_timeline *sync_pt_parent(struct sync_pt *pt)
 {
@@ -89,7 +85,7 @@ static inline int sync_pt_get_status(struct sync_pt *pt)
 #define for_each_sync_pt(s, f, c) \
 	list_for_each_entry((s), &(f)->pt_list_head, pt_list)
 
-#else /* (LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)) */
+#else /* (LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)) */
 
 static inline int sync_pt_get_status(struct sync_pt *pt)
 {
@@ -104,7 +100,7 @@ static inline int sync_pt_get_status(struct sync_pt *pt)
 	     (c)++,   (s) = (c) < (f)->num_fences ? \
 		(struct sync_pt *)(f)->cbs[c].sync_pt : NULL)
 
-#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)) */
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)) */
 
 /* #define DEBUG_OUTPUT 1 */
 
@@ -135,10 +131,10 @@ enum {
 
 struct pvr_sync_append_data {
 	u32					nr_updates;
-	PRGXFWIF_UFO_ADDR			*update_ufo_addresses;
+	struct _RGXFWIF_DEV_VIRTADDR_		*update_ufo_addresses;
 	u32					*update_values;
 	u32					nr_checks;
-	PRGXFWIF_UFO_ADDR			*check_ufo_addresses;
+	struct _RGXFWIF_DEV_VIRTADDR_		*check_ufo_addresses;
 	u32					*check_values;
 
 	/* The cleanup list is needed for rollback (as that's the only op
@@ -305,9 +301,6 @@ struct pvr_sync_fence_waiter {
 
 /* Global data for the sync driver */
 static struct {
-	/* Services connection */
-	void *device_cookie;
-
 	/* Complete notify handle */
 	void *command_complete_handle;
 
@@ -362,6 +355,8 @@ static DEFINE_SPINLOCK(sync_prim_free_list_spinlock);
 /* The "defer-put" object list. Driver global. */
 static LIST_HEAD(sync_fence_put_list);
 static DEFINE_SPINLOCK(sync_fence_put_list_spinlock);
+
+static void pvr_sync_update_all_timelines(void *command_complete_handle);
 
 static inline void set_sync_value(struct pvr_sync_native_sync_prim *sync,
 				  u32 value)
@@ -432,6 +427,7 @@ static char *debug_info_sync_pt(struct sync_pt *pt)
 		unsigned int cleanup_count = 0;
 		unsigned int info1_pos = 0;
 		struct list_head *pos;
+
 		info1[0] = 0;
 
 		list_for_each(pos, &kernel->cleanup_sync_list) {
@@ -489,12 +485,13 @@ sync_pool_get(struct pvr_sync_native_sync_prim **_sync,
 {
 	struct pvr_sync_native_sync_prim *sync;
 	enum PVRSRV_ERROR error = PVRSRV_OK;
+	u32 sync_addr;
 
 	mutex_lock(&sync_pool_mutex);
 
 	if (list_empty(&sync_pool_free_list)) {
 		/* If there is nothing in the pool, create a new sync prim. */
-		sync = kmalloc(sizeof(struct pvr_sync_native_sync_prim),
+		sync = kmalloc(sizeof(*sync),
 			       GFP_KERNEL);
 		if (!sync) {
 			pr_err("pvr_sync: %s: Failed to allocate sync data\n",
@@ -511,7 +508,13 @@ sync_pool_get(struct pvr_sync_native_sync_prim **_sync,
 			goto err_free;
 		}
 
-		sync->vaddr = SyncPrimGetFirmwareAddr(sync->client_sync);
+		error = SyncPrimGetFirmwareAddr(sync->client_sync, &sync_addr);
+		if (error != PVRSRV_OK) {
+			pr_err("pvr_sync: %s: Failed to get FW address (%s)\n",
+			       __func__, PVRSRVGetErrorStringKM(error));
+			goto err_sync_prim_free;
+		}
+		sync->vaddr = sync_addr;
 
 		list_add_tail(&sync->list, &sync_pool_active_list);
 		++sync_pool_created;
@@ -527,7 +530,6 @@ sync_pool_get(struct pvr_sync_native_sync_prim **_sync,
 	sync->type = type;
 
 	strncpy(sync->class, class_name, sizeof(sync->class));
-	/* make sure string is null terminated */
 	sync->class[sizeof(sync->class) - 1] = '\0';
 	/* Its crucial to reset the sync to zero */
 	set_sync_value(sync, 0);
@@ -537,6 +539,9 @@ sync_pool_get(struct pvr_sync_native_sync_prim **_sync,
 err_unlock:
 	mutex_unlock(&sync_pool_mutex);
 	return error;
+
+err_sync_prim_free:
+	SyncPrimFree(sync->client_sync);
 
 err_free:
 	kfree(sync);
@@ -585,9 +590,9 @@ static void sync_pool_clear(void)
 }
 
 static void pvr_sync_debug_request(void *hDebugRequestHandle,
-								   u32 ui32VerbLevel,
-								   DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
-								   void *pvDumpDebugFile)
+				   u32 ui32VerbLevel,
+				   DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
+				   void *pvDumpDebugFile)
 {
 	struct pvr_sync_native_sync_prim *sync;
 
@@ -622,12 +627,12 @@ static void pvr_sync_debug_request(void *hDebugRequestHandle,
 					  type_names[sync->type]);
 		}
 #if 0
-		PVR_DUMPDEBUG_LOG(g_pfnDumpDebugPrintf,
+		PVR_DUMPDEBUG_LOG(pfnDumpDebugPrintf,
 				  "Dumping all unused syncs");
 		list_for_each_entry(sync, &sync_pool_free_list, list) {
 			BUG_ON(sync->type >= ARRAY_SIZE(type_names));
 
-			PVR_DUMPDEBUG_LOG(g_pfnDumpDebugPrintf,
+			PVR_DUMPDEBUG_LOG(pfnDumpDebugPrintf,
 					  "\tID = %d, FWAddr = 0x%08x: Current = 0x%08x, Next = 0x%08x, %s (%s)",
 					  sync->id, sync->vaddr,
 					  get_sync_value(sync),
@@ -649,7 +654,7 @@ static struct sync_pt *pvr_sync_dup(struct sync_pt *sync_pt)
 
 	pvr_pt_b = (struct pvr_sync_pt *)
 		sync_pt_create(sync_pt_parent(sync_pt),
-			       sizeof(struct pvr_sync_pt));
+			       sizeof(*pvr_pt_b));
 	if (!pvr_pt_b) {
 		pr_err("pvr_sync: %s: Failed to dup sync pt\n", __func__);
 		goto err_out;
@@ -820,9 +825,8 @@ static void pvr_sync_pt_value_str(struct sync_pt *sync_pt, char *str, int size)
 	 *
 	 * 123456789012345678901234567890123456789012345678901234567890123
 	 *
-	 * ID     FW ADDR    C/N # REF CLEANUP_COUNT
-	 *                               TAKEN
-	 * 123456 0xdeadbeef 0/1 # r=2 1 123456
+	 * ID     FW ADDR    C/N # REF TAKEN  CLEANUP_COUNT
+	 * 123456 0xdeadbeef 0/1 # r=2 123456 1
 	 */
 	if (kernel) {
 		unsigned int cleanup_count = 0;
@@ -840,6 +844,7 @@ static void pvr_sync_pt_value_str(struct sync_pt *sync_pt, char *str, int size)
 			 atomic_read(&pvr_pt->sync_data->kref.refcount),
 			 cleanup_count,
 			 pvr_pt->sync_data->timeline_update_value);
+
 	} else {
 		snprintf(str, size, "idle # r=%d %u",
 			 atomic_read(&pvr_pt->sync_data->kref.refcount),
@@ -856,14 +861,14 @@ pvr_sync_create_sync_data(struct sync_timeline *obj)
 	struct pvr_sync_data *sync_data = NULL;
 	enum PVRSRV_ERROR error;
 
-	sync_data = kzalloc(sizeof(struct pvr_sync_data), GFP_KERNEL);
+	sync_data = kzalloc(sizeof(*sync_data), GFP_KERNEL);
 	if (!sync_data)
 		goto err_out;
 
 	kref_init(&sync_data->kref);
 
 	sync_data->kernel =
-		kzalloc(sizeof(struct pvr_sync_kernel_pair),
+		kzalloc(sizeof(*sync_data->kernel),
 		GFP_KERNEL);
 
 	if (!sync_data->kernel)
@@ -943,7 +948,7 @@ pvr_sync_fill_driver_data(struct sync_pt *sync_pt, void *data, int size)
 	struct pvr_sync_data *sync_data = pvr_pt->sync_data;
 	struct pvr_sync_kernel_pair *kernel = sync_data->kernel;
 
-	if (size < sizeof(struct pvr_sync_pt_info))
+	if (size < sizeof(*info))
 		return -ENOMEM;
 
 	info->ui32TlTaken = sync_data->timeline_update_value;
@@ -960,7 +965,7 @@ pvr_sync_fill_driver_data(struct sync_pt *sync_pt, void *data, int size)
 		info->ui32NextOp = 0;
 	}
 
-	return sizeof(struct pvr_sync_pt_info);
+	return sizeof(*info);
 }
 
 /* foreign sync handling */
@@ -1016,7 +1021,7 @@ pvr_sync_create_waiter_for_foreign_sync(int fd)
 		goto err_out;
 	}
 
-	kernel = kmalloc(sizeof(struct pvr_sync_kernel_pair), GFP_KERNEL);
+	kernel = kmalloc(sizeof(*kernel), GFP_KERNEL);
 	if (!kernel) {
 		pr_err("pvr_sync: %s: Failed to allocate sync kernel\n",
 		       __func__);
@@ -1025,7 +1030,7 @@ pvr_sync_create_waiter_for_foreign_sync(int fd)
 
 	INIT_LIST_HEAD(&kernel->cleanup_sync_list);
 
-	sync_fence = kmalloc(sizeof(struct pvr_sync_fence), GFP_KERNEL);
+	sync_fence = kmalloc(sizeof(*sync_fence), GFP_KERNEL);
 	if (!sync_fence) {
 		pr_err("pvr_sync: %s: Failed to allocate pvr sync fence\n",
 		       __func__);
@@ -1044,8 +1049,8 @@ pvr_sync_create_waiter_for_foreign_sync(int fd)
 
 	kernel->fence_sync->next_value++;
 
-	error = sync_pool_get(&cleanup_sync,
-			      fence->name, SYNC_PT_FOREIGN_CLEANUP_TYPE);
+	error = sync_pool_get(&cleanup_sync, fence->name,
+		SYNC_PT_FOREIGN_CLEANUP_TYPE);
 	if (error != PVRSRV_OK) {
 		pr_err("pvr_sync: %s: Failed to allocate cleanup sync prim (%s)\n",
 		       __func__, PVRSRVGetErrorStringKM(error));
@@ -1057,7 +1062,7 @@ pvr_sync_create_waiter_for_foreign_sync(int fd)
 	list_add(&cleanup_sync->cleanup_list, &kernel->cleanup_sync_list);
 
 	/* The custom waiter structure is freed in the waiter callback */
-	waiter = kmalloc(sizeof(struct pvr_sync_fence_waiter), GFP_KERNEL);
+	waiter = kmalloc(sizeof(*waiter), GFP_KERNEL);
 	if (!waiter) {
 		pr_err("pvr_sync: %s: Failed to allocate waiter\n", __func__);
 		goto err_free_cleanup_sync;
@@ -1120,7 +1125,7 @@ struct pvr_sync_pt *pvr_sync_create_pt(struct pvr_sync_timeline *timeline)
 	sync_data->kernel->fence_sync->next_value++;
 
 	pvr_pt = (struct pvr_sync_pt *)
-		sync_pt_create(timeline->obj, sizeof(struct pvr_sync_pt));
+		sync_pt_create(timeline->obj, sizeof(*pvr_pt));
 
 	if (!pvr_pt) {
 		pr_err("pvr_sync: %s: Failed to create sync pt\n", __func__);
@@ -1149,23 +1154,23 @@ err_out:
 static const struct file_operations pvr_sync_fops;
 
 enum PVRSRV_ERROR pvr_sync_append_fences(
-	const char                  *name,
-	const s32                   check_fence_fd,
-	const s32                   update_timeline_fd,
-	const u32                   nr_updates,
-	const PRGXFWIF_UFO_ADDR     *update_ufo_addresses,
-	const u32                   *update_values,
-	const u32                   nr_checks,
-	const PRGXFWIF_UFO_ADDR     *check_ufo_addresses,
-	const u32                   *check_values,
-	struct pvr_sync_append_data **append_sync_data)
+	const char				*name,
+	const s32				check_fence_fd,
+	const s32				update_timeline_fd,
+	const u32				nr_updates,
+	const struct _RGXFWIF_DEV_VIRTADDR_	*update_ufo_addresses,
+	const u32				*update_values,
+	const u32				nr_checks,
+	const struct _RGXFWIF_DEV_VIRTADDR_	*check_ufo_addresses,
+	const u32				*check_values,
+	struct pvr_sync_append_data		**append_sync_data)
 {
 	struct pvr_sync_native_sync_prim **cleanup_sync_pos;
 	struct pvr_sync_pt *update_point = NULL;
 	struct sync_fence *update_fence = NULL;
 	struct pvr_sync_append_data *sync_data;
-	PRGXFWIF_UFO_ADDR *update_address_pos;
-	PRGXFWIF_UFO_ADDR *check_address_pos;
+	struct _RGXFWIF_DEV_VIRTADDR_ *update_address_pos;
+	struct _RGXFWIF_DEV_VIRTADDR_ *check_address_pos;
 	struct pvr_sync_timeline *timeline;
 	unsigned int num_used_sync_updates;
 	unsigned int num_used_sync_checks;
@@ -1180,7 +1185,7 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 	}
 
 	sync_data =
-		kzalloc(sizeof(struct pvr_sync_append_data), GFP_KERNEL);
+		kzalloc(sizeof(*sync_data), GFP_KERNEL);
 	if (!sync_data) {
 		err = PVRSRV_ERROR_OUT_OF_MEMORY;
 		goto err_out;
@@ -1239,7 +1244,11 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 			goto err_free_append_data;
 		}
 
+#if defined(CHROMIUMOS_WORKAROUNDS_KERNEL318)
+		update_fence = sync_fence_create(name, &update_point->pt.base);
+#else
 		update_fence = sync_fence_create(name, &update_point->pt);
+#endif
 		if (!update_fence) {
 			struct pvr_sync_native_sync_prim *fence_prim =
 				update_point->sync_data->kernel->fence_sync;
@@ -1302,11 +1311,11 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 
 			pvr_pt = (struct pvr_sync_pt *)sync_pt;
 			sync_kernel = pvr_pt->sync_data->kernel;
-			if (!sync_kernel)
-				continue;
 
-			if (is_sync_met(sync_kernel->fence_sync))
+			if (!sync_kernel ||
+			    is_sync_met(sync_kernel->fence_sync)) {
 				continue;
+			}
 
 			/* We will use the above sync for "check" only. In this
 			 * case also insert a "cleanup" update command into the
@@ -1347,9 +1356,8 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 
 	if (sync_data->nr_updates > 0) {
 		sync_data->update_ufo_addresses =
-			kzalloc(sizeof(PRGXFWIF_UFO_ADDR) *
-					sync_data->nr_updates,
-				GFP_KERNEL);
+			kzalloc(sizeof(*sync_data->update_ufo_addresses) *
+					sync_data->nr_updates, GFP_KERNEL);
 		if (!sync_data->update_ufo_addresses) {
 			pr_err("pvr_sync: %s: Failed to allocate update UFO address list\n",
 				__func__);
@@ -1358,8 +1366,8 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 		}
 
 		sync_data->update_values =
-			kzalloc(sizeof(u32) * sync_data->nr_updates,
-				GFP_KERNEL);
+			kzalloc(sizeof(*sync_data->update_values) *
+				sync_data->nr_updates, GFP_KERNEL);
 		if (!sync_data->update_values) {
 			pr_err("pvr_sync: %s: Failed to allocate update value list\n",
 				__func__);
@@ -1371,9 +1379,8 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 	if (sync_data->nr_checks > 0) {
 
 		sync_data->check_ufo_addresses =
-			kzalloc(sizeof(PRGXFWIF_UFO_ADDR) *
-					sync_data->nr_checks,
-				GFP_KERNEL);
+			kzalloc(sizeof(*sync_data->check_ufo_addresses) *
+					sync_data->nr_checks, GFP_KERNEL);
 		if (!sync_data->check_ufo_addresses) {
 			pr_err("pvr_sync: %s: Failed to allocate check UFO address list\n",
 				__func__);
@@ -1382,8 +1389,8 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 		}
 
 		sync_data->check_values =
-			kzalloc(sizeof(u32) * sync_data->nr_checks,
-				GFP_KERNEL);
+			kzalloc(sizeof(*sync_data->check_values) *
+				sync_data->nr_checks, GFP_KERNEL);
 		if (!sync_data->check_values) {
 			pr_err("pvr_sync: %s: Failed to allocate check value list\n",
 				__func__);
@@ -1394,7 +1401,7 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 
 	if (sync_data->nr_cleanup_syncs > 0) {
 		sync_data->cleanup_syncs =
-			kzalloc(sizeof(struct pvr_sync_native_sync_prim *) *
+			kzalloc(sizeof(*sync_data->cleanup_syncs) *
 				sync_data->nr_cleanup_syncs, GFP_KERNEL);
 		if (!sync_data->cleanup_syncs) {
 			pr_err("pvr_sync: %s: Failed to allocate cleanup rollback list\n",
@@ -1409,7 +1416,6 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 	check_address_pos = sync_data->check_ufo_addresses;
 	check_value_pos = sync_data->check_values;
 	cleanup_sync_pos = sync_data->cleanup_syncs;
-
 
 	/* Everything should be allocated/sanity checked. No errors are
 	 * possible after this point.
@@ -1464,8 +1470,8 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 				struct pvr_sync_native_sync_prim *fence_sync =
 					foreign_sync_kernel->fence_sync;
 				struct pvr_sync_native_sync_prim *cleanup_sync =
-					foreign_sync_kernel->current_cleanup_sync;
-
+					foreign_sync_kernel->
+						current_cleanup_sync;
 
 				(*check_address_pos++).ui32Addr =
 					fence_sync->vaddr;
@@ -1477,7 +1483,8 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 				*update_value_pos++ =
 					++cleanup_sync->next_value;
 				*cleanup_sync_pos++ = cleanup_sync;
-				foreign_sync_kernel->current_cleanup_sync = NULL;
+				foreign_sync_kernel->current_cleanup_sync =
+					NULL;
 			}
 		}
 	}
@@ -1525,17 +1532,17 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 	/* Append original check and update sync values/addresses */
 	if (update_ufo_addresses)
 		memcpy(update_address_pos, update_ufo_addresses,
-			   sizeof(PRGXFWIF_UFO_ADDR) * nr_updates);
+			sizeof(*update_ufo_addresses) * nr_updates);
 	if (update_values)
 		memcpy(update_value_pos, update_values,
-			   sizeof(u32) * nr_updates);
+			sizeof(*update_values) * nr_updates);
 
 	if (check_ufo_addresses)
 		memcpy(check_address_pos, check_ufo_addresses,
-			   sizeof(PRGXFWIF_UFO_ADDR) * nr_checks);
+			sizeof(*check_ufo_addresses) * nr_checks);
 	if (check_values)
 		memcpy(check_value_pos, check_values,
-			   sizeof(u32) * nr_checks);
+			sizeof(*check_values) * nr_checks);
 
 	*append_sync_data = sync_data;
 
@@ -1554,7 +1561,7 @@ err_out:
 }
 
 void pvr_sync_get_updates(const struct pvr_sync_append_data *sync_data,
-	u32 *nr_fences, PRGXFWIF_UFO_ADDR **ufo_addrs, u32 **values)
+	u32 *nr_fences, struct _RGXFWIF_DEV_VIRTADDR_ **ufo_addrs, u32 **values)
 {
 	*nr_fences = sync_data->nr_updates;
 	*ufo_addrs = sync_data->update_ufo_addresses;
@@ -1562,7 +1569,7 @@ void pvr_sync_get_updates(const struct pvr_sync_append_data *sync_data,
 }
 
 void pvr_sync_get_checks(const struct pvr_sync_append_data *sync_data,
-	u32 *nr_fences, PRGXFWIF_UFO_ADDR **ufo_addrs, u32 **values)
+	u32 *nr_fences, struct _RGXFWIF_DEV_VIRTADDR_ **ufo_addrs, u32 **values)
 {
 	*nr_fences = sync_data->nr_checks;
 	*ufo_addrs = sync_data->check_ufo_addresses;
@@ -1673,6 +1680,8 @@ void pvr_sync_nohw_complete_fences(struct pvr_sync_append_data *sync_data)
 		complete_sync(sync_data->update_sync);
 	if (sync_data->update_timeline_sync)
 		complete_sync(sync_data->update_timeline_sync);
+
+	pvr_sync_update_all_timelines(NULL);
 }
 
 /* ioctl and fops handling */
@@ -1689,19 +1698,19 @@ static int pvr_sync_open(struct inode *inode, struct file *file)
 
 	timeline_wrapper = (struct pvr_sync_timeline_wrapper *)
 		sync_timeline_create(&pvr_sync_timeline_ops,
-			sizeof(struct pvr_sync_timeline_wrapper), task_comm);
+			sizeof(*timeline_wrapper), task_comm);
 	if (!timeline_wrapper) {
 		pr_err("pvr_sync: %s: sync_timeline_create failed\n", __func__);
 		goto err_out;
 	}
 
-	timeline = kmalloc(sizeof(struct pvr_sync_timeline), GFP_KERNEL);
+	timeline = kmalloc(sizeof(*timeline), GFP_KERNEL);
 	if (!timeline) {
 		pr_err("pvr_sync: %s: Out of memory\n", __func__);
 		goto err_free_timeline_wrapper;
 	}
 
-	timeline->kernel = kzalloc(sizeof(struct pvr_sync_kernel_pair),
+	timeline->kernel = kzalloc(sizeof(*timeline->kernel),
 				   GFP_KERNEL);
 	if (!timeline->kernel) {
 		pr_err("pvr_sync: %s: Out of memory\n", __func__);
@@ -1711,10 +1720,8 @@ static int pvr_sync_open(struct inode *inode, struct file *file)
 	INIT_LIST_HEAD(&timeline->kernel->cleanup_sync_list);
 
 	OSAcquireBridgeLock();
-	PMRLock();
 	error = sync_pool_get(&timeline->kernel->fence_sync,
 			      task_comm, SYNC_TL_TYPE);
-	PMRUnlock();
 	OSReleaseBridgeLock();
 
 	if (error != PVRSRV_OK) {
@@ -1788,7 +1795,7 @@ static long pvr_sync_ioctl_rename(struct pvr_sync_timeline *timeline,
 
 	mutex_lock(&sync_pool_mutex);
 	strlcpy(timeline->kernel->fence_sync->class, data.szName,
-	        sizeof(timeline->kernel->fence_sync->class));
+		sizeof(timeline->kernel->fence_sync->class));
 	mutex_unlock(&sync_pool_mutex);
 err:
 	return err;
@@ -1845,7 +1852,11 @@ static long pvr_sync_ioctl_sw_create_fence(struct sw_sync_timeline *timeline,
 	}
 
 	data.name[sizeof(data.name) - 1] = '\0';
+#if defined(CHROMIUMOS_WORKAROUNDS_KERNEL318)
+	fence = sync_fence_create(data.name, &sync_pt->base);
+#else
 	fence = sync_fence_create(data.name, sync_pt);
+#endif
 	if (!fence) {
 		pr_err("pvr_sync: %s: Failed to create a fence (%d)\n",
 		       __func__, fd);
@@ -1959,7 +1970,6 @@ pvr_sync_clean_freelist(void)
 		/* Check if this sync is not used anymore. */
 		if (!is_sync_met(kernel->fence_sync))
 			continue;
-
 		list_for_each(pos, &kernel->cleanup_sync_list) {
 			struct pvr_sync_native_sync_prim *cleanup_sync =
 				list_entry(pos,
@@ -2132,7 +2142,7 @@ void pvr_sync_update_all_timelines(void *command_complete_handle)
 	mutex_unlock(&timeline_list_mutex);
 }
 
-enum PVRSRV_ERROR pvr_sync_init(void)
+enum PVRSRV_ERROR pvr_sync_init(void *device_cookie)
 {
 	enum PVRSRV_ERROR error;
 	int err;
@@ -2141,25 +2151,17 @@ enum PVRSRV_ERROR pvr_sync_init(void)
 
 	atomic_set(&pvr_sync_data.sync_id, 0);
 
-	error = PVRSRVAcquireDeviceDataKM(0, PVRSRV_DEVICE_TYPE_RGX,
-					  &pvr_sync_data.device_cookie);
-	if (error != PVRSRV_OK) {
-		pr_err("pvr_sync: %s: Failed to initialise services (%s)\n",
-		       __func__, PVRSRVGetErrorStringKM(error));
-		goto err_out;
-	}
-
-	error = AcquireGlobalEventObjectServer(
+	error = PVRSRVAcquireGlobalEventObjectKM(
 		&pvr_sync_data.event_object_handle);
 	if (error != PVRSRV_OK) {
 		pr_err("pvr_sync: %s: Failed to acquire global event object (%s)\n",
 			__func__, PVRSRVGetErrorStringKM(error));
-		goto err_release_device_data;
+		goto err_out;
 	}
 
 	OSAcquireBridgeLock();
 
-	error = SyncPrimContextCreate(pvr_sync_data.device_cookie,
+	error = SyncPrimContextCreate(device_cookie,
 				      &pvr_sync_data.sync_prim_context);
 	if (error != PVRSRV_OK) {
 		pr_err("pvr_sync: %s: Failed to create sync prim context (%s)\n",
@@ -2194,7 +2196,7 @@ enum PVRSRV_ERROR pvr_sync_init(void)
 	error = PVRSRVRegisterCmdCompleteNotify(
 			&pvr_sync_data.command_complete_handle,
 			&pvr_sync_update_all_timelines,
-			&pvr_sync_data.device_cookie);
+			&device_cookie);
 	if (error != PVRSRV_OK) {
 		pr_err("pvr_sync: %s: Failed to register MISR notification (%s)\n",
 		       __func__, PVRSRVGetErrorStringKM(error));
@@ -2203,6 +2205,7 @@ enum PVRSRV_ERROR pvr_sync_init(void)
 
 	error = PVRSRVRegisterDbgRequestNotify(
 			&pvr_sync_data.debug_notify_handle,
+			device_cookie,
 			pvr_sync_debug_request,
 			DEBUG_REQUEST_ANDROIDSYNC,
 			NULL);
@@ -2237,9 +2240,7 @@ err_free_sync_context:
 	SyncPrimContextDestroy(pvr_sync_data.sync_prim_context);
 	OSReleaseBridgeLock();
 err_release_event_object:
-	ReleaseGlobalEventObjectServer(pvr_sync_data.event_object_handle);
-err_release_device_data:
-	PVRSRVReleaseDeviceDataKM(pvr_sync_data.device_cookie);
+	PVRSRVReleaseGlobalEventObjectKM(pvr_sync_data.event_object_handle);
 err_out:
 
 	return error;
@@ -2270,7 +2271,5 @@ void pvr_sync_deinit(void)
 
 	OSReleaseBridgeLock();
 
-	ReleaseGlobalEventObjectServer(pvr_sync_data.event_object_handle);
-
-	PVRSRVReleaseDeviceDataKM(pvr_sync_data.device_cookie);
+	PVRSRVReleaseGlobalEventObjectKM(pvr_sync_data.event_object_handle);
 }

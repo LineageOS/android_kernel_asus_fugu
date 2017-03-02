@@ -61,6 +61,9 @@ typedef struct _RGXMEM_PROCESS_INFO_
 	IMG_BOOL bUnregistered;
 } RGXMEM_PROCESS_INFO;
 
+IMG_DEV_PHYADDR GetPC(MMU_CONTEXT * psContext);
+	
+/* FIXME: SyncPrim should be stored on the memory context */
 void RGXMMUSyncPrimAlloc(PVRSRV_DEVICE_NODE *psDeviceNode);
 void RGXMMUSyncPrimFree(void);
 
@@ -69,10 +72,12 @@ void RGXMMUCacheInvalidate(PVRSRV_DEVICE_NODE *psDeviceNode,
 						   MMU_LEVEL eMMULevel,
 						   IMG_BOOL bUnmap);
 
-PVRSRV_ERROR RGXSLCCacheInvalidateRequest(PVRSRV_DEVICE_NODE	*psDeviceNode,
-									PMR *psPmr);
+PVRSRV_ERROR RGXMMUCacheInvalidateKick(PVRSRV_DEVICE_NODE *psDevInfo,
+                                       IMG_UINT32 *pui32NextMMUInvalidateUpdate);
 
-PVRSRV_ERROR RGXPreKickCacheCommand(PVRSRV_RGXDEV_INFO *psDevInfo, RGXFWIF_DM eDM);
+PVRSRV_ERROR RGXPreKickCacheCommand(PVRSRV_RGXDEV_INFO *psDevInfo,
+                                    RGXFWIF_DM eDM,
+                                    IMG_UINT32 *pui32MMUInvalidateUpdate);
 
 void RGXUnregisterMemoryContext(IMG_HANDLE hPrivData);
 PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE	*psDeviceNode,

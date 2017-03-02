@@ -1,5 +1,8 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; tab-width: 8 -*- */
+/* vi: set ts=8 sw=8 sts=8: */
 /*************************************************************************/ /*!
 @File
+@Codingstyle    LinuxKernel
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
 @License        Dual MIT/GPLv2
 
@@ -38,7 +41,6 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
-/* vi: set ts=8: */
 
 #include "adf_common.h"
 
@@ -223,8 +225,7 @@ struct adf_validate_config_ext __user *arg)
 {
 	int err;
 
-	if (!access_ok(VERIFY_READ, arg,
-	     sizeof(struct adf_validate_config_ext))) {
+	if (!access_ok(VERIFY_READ, arg, sizeof(*arg))) {
 		err = -EFAULT;
 		goto err_out;
 	}
@@ -264,8 +265,7 @@ static long adf_img_ioctl_validate_compat(struct adf_device *dev,
 	BUILD_BUG_ON_MSG(sizeof(struct adf_validate_config_ext) != 32,
 		"adf_validate_config_ext has unexpected size");
 
-	if (!access_ok(VERIFY_READ, arg_compat,
-		sizeof(struct adf_validate_config_ext32))) {
+	if (!access_ok(VERIFY_READ, arg_compat, sizeof(*arg_compat))) {
 		err = -EFAULT;
 		goto err_out;
 	}

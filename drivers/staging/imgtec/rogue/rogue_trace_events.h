@@ -369,6 +369,40 @@ TRACE_EVENT(rogue_events_lost,
 		__entry->curr_ordinal)
 );
 
+void PVRGpuTraceEnableFirmwareActivityCallback(void);
+void PVRGpuTraceDisableFirmwareActivityCallback(void);
+
+TRACE_EVENT_FN(rogue_firmware_activity,
+
+	TP_PROTO(u64 timestamp, const char *task, u32 fw_event),
+
+	TP_ARGS(timestamp, task, fw_event),
+
+	TP_STRUCT__entry(
+		__field(        u64,            timestamp       )
+		__string(       task,           task            )
+		__field(        u32,            fw_event        )
+	),
+
+	TP_fast_assign(
+		__entry->timestamp = timestamp;
+		__assign_str(task, task);
+		__entry->fw_event = fw_event;
+	),
+
+	TP_printk("ts=%llu.%06lu task=%s event=%s",
+		(unsigned long long)show_secs_from_ns(__entry->timestamp),
+		(unsigned long)show_usecs_from_ns(__entry->timestamp),
+		__get_str(task),
+		__print_symbolic(__entry->fw_event,
+			/* These values are from pvr_gputrace.h. */
+			{ 1, "begin" },
+			{ 2, "end" })),
+
+	PVRGpuTraceEnableFirmwareActivityCallback,
+	PVRGpuTraceDisableFirmwareActivityCallback
+);
+
 #endif /* defined(SUPPORT_GPUTRACE_EVENTS) */
 
 #undef show_secs_from_ns

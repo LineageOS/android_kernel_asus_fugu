@@ -71,7 +71,7 @@ static inline void _pvr_vfree(const void* pvAddr)
 			 * a whole number of pages, poison the minimum size known to have
 			 * been allocated.
 			 */
-			OSMemSet((void*)pvAddr, OS_MEM_POISON_VALUE, PVR_LINUX_KMALLOC_ALLOCATION_THRESHOLD);
+			OSCachedMemSet((void*)pvAddr, OS_MEM_POISON_VALUE, PVR_LINUX_KMALLOC_ALLOCATION_THRESHOLD);
 #endif
 			vfree(pvAddr);
 }
@@ -80,7 +80,7 @@ static inline void _pvr_kfree(const void* pvAddr)
 {
 #if defined(DEBUG)
 			/* Poison whole memory block */
-			OSMemSet((void*)pvAddr, OS_MEM_POISON_VALUE, ksize(pvAddr));
+			OSCachedMemSet((void*)pvAddr, OS_MEM_POISON_VALUE, ksize(pvAddr));
 #endif
 			kfree(pvAddr);
 }
@@ -118,7 +118,11 @@ IMG_INTERNAL void *OSAllocZMem(IMG_UINT32 ui32Size)
 	return pvRet;
 }
 
-IMG_INTERNAL void OSFreeMem(void *pvMem)
+/*
+ * The parentheses around OSFreeMem prevent the macro in allocmem.h from
+ * applying, as it would break the function's definition.
+ */
+IMG_INTERNAL void (OSFreeMem)(void *pvMem)
 {
 	if (pvMem != NULL)
 	{
@@ -349,7 +353,11 @@ IMG_INTERNAL void *OSAllocZMem(IMG_UINT32 ui32Size)
 }
 #endif
 
-IMG_INTERNAL void OSFreeMem(void *pvMem)
+/*
+ * The parentheses around OSFreeMem prevent the macro in allocmem.h from
+ * applying, as it would break the function's definition.
+ */
+IMG_INTERNAL void (OSFreeMem)(void *pvMem)
 {
 	if (pvMem != NULL)
 	{
@@ -415,7 +423,11 @@ IMG_INTERNAL void *OSAllocZMemNoStats(IMG_UINT32 ui32Size)
 	return pvRet;
 }
 
-IMG_INTERNAL void OSFreeMemNoStats(void *pvMem)
+/*
+ * The parentheses around OSFreeMemNoStats prevent the macro in allocmem.h from
+ * applying, as it would break the function's definition.
+ */
+IMG_INTERNAL void (OSFreeMemNoStats)(void *pvMem)
 {
 	if (pvMem != NULL)
 	{

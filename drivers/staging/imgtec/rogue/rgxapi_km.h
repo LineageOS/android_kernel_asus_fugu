@@ -86,7 +86,7 @@ PVRSRV_ERROR RGXHWPerfLazyConnect(
 			   connection object has to be provided which means the this
 			   function needs to be preceded by the call to
 			   RGXHWPerfLazyConnect() function.
-@Output        phDevData      handle to a connection object
+@Input        phDevData      handle to a connection object
 @Return        PVRSRV_ERROR:  for system error codes
 */ /***************************************************************************/
 PVRSRV_ERROR RGXHWPerfOpen(
@@ -188,6 +188,20 @@ PVRSRV_ERROR IMG_CALLCONV RGXHWPerfDisableCounters(
 		IMG_UINT32   ui32NumBlocks,
 		IMG_UINT16*   aeBlockIDs);
 
+/**************************************************************************/ /*!
+@Function       RGXEnableHWPerfCounters
+@Description    Enable the performance counter block for one or more
+                 device layout modules. See RGXEnableHWPerfCounters().
+@Input          hDevData        Handle to connection/device object
+@Input          ui32NumBlocks   Number of elements in the array
+@Input          aeBlockIDs      An array of bytes with values taken from
+                                 the RGX_HWPERF_CNTBLK_ID enumeration.
+@Return         PVRSRV_ERROR:   for system error codes
+*/ /***************************************************************************/
+PVRSRV_ERROR IMG_CALLCONV RGXHWPerfEnableCounters(
+		IMG_HANDLE   hDevData,
+		IMG_UINT32   ui32NumBlocks,
+		IMG_UINT16*   aeBlockIDs);
 
 /******************************************************************************
  * RGX HW Performance Profiling Retrieval API(s)
