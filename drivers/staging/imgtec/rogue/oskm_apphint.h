@@ -1,8 +1,7 @@
 /*************************************************************************/ /*!
 @File           oskm_apphint.h
-@Title          KM Apphint Interface header
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
-@Description    OS Independent KM Apphint Interface
+@Description    OS-independent interface for retrieving KM apphints
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -40,7 +39,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
-
+#include "img_defs.h"
 #if defined(LINUX)
 #include "km_apphint.h"
 #else
@@ -50,63 +49,160 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define __OSKM_APPHINT_H__
 
 
-#if defined(LINUX)
+#if defined(LINUX) && !defined(DOXYGEN)
 #if defined(SUPPORT_KERNEL_SRVINIT)
+static INLINE IMG_UINT os_get_km_apphint_UINT32(void *state, APPHINT_ID id, IMG_UINT32 *pAppHintDefault, IMG_UINT32 *pVal) {
+	return !pvr_apphint_get_uint32(id, pVal);
+}
+static INLINE IMG_UINT os_get_km_apphint_UINT64(void *state, APPHINT_ID id, IMG_UINT64 *pAppHintDefault, IMG_UINT64 *pVal) {
+	return !pvr_apphint_get_uint64(id, pVal);
+}
+static INLINE IMG_UINT os_get_km_apphint_BOOL(void *state, APPHINT_ID id, IMG_BOOL *pAppHintDefault, IMG_BOOL *pVal) {
+	return !pvr_apphint_get_bool(id, pVal);
+}
+static INLINE IMG_UINT os_get_km_apphint_STRING(void *state, APPHINT_ID id, IMG_CHAR **pAppHintDefault, IMG_CHAR *buffer, size_t size) {
+	return !pvr_apphint_get_string(id, buffer, size);
+}
+
 #define OSGetKMAppHintUINT32(state, name, appHintDefault, value) \
-	do { \
-		PVR_UNREFERENCED_PARAMETER(appHintDefault); \
-		pvr_apphint_get_uint32(APPHINT_ID_ ## name, value); \
-	} while (0)
+	os_get_km_apphint_UINT32(state, APPHINT_ID_ ## name, appHintDefault, value)
+
 #define OSGetKMAppHintUINT64(state, name, appHintDefault, value) \
-	do { \
-		PVR_UNREFERENCED_PARAMETER(appHintDefault); \
-		pvr_apphint_get_uint64(APPHINT_ID_ ## name, value); \
-	} while (0)
+	os_get_km_apphint_UINT64(state, APPHINT_ID_ ## name, appHintDefault, value)
 
 #define OSGetKMAppHintBOOL(state, name, appHintDefault, value) \
-	do { \
-		PVR_UNREFERENCED_PARAMETER(appHintDefault); \
-		pvr_apphint_get_bool(APPHINT_ID_ ## name, value); \
-	} while (0)
+	os_get_km_apphint_BOOL(state, APPHINT_ID_ ## name, appHintDefault, value)
+
+#define OSGetKMAppHintSTRING(state, name, appHintDefault, buffer, size) \
+	os_get_km_apphint_STRING(state, APPHINT_ID_ ## name, appHintDefault, buffer, size)
 
 #else
 static INLINE IMG_UINT os_get_apphint_default_UINT32(IMG_UINT32 *pAppHintDefault, IMG_UINT32 *pVal) {
 	*pVal = *pAppHintDefault;
-	return 0;
+	return IMG_TRUE;
 }
 static INLINE IMG_UINT os_get_apphint_default_UINT64(IMG_UINT64 *pAppHintDefault, IMG_UINT64 *pVal) {
 	*pVal = *pAppHintDefault;
-	return 0;
+	return IMG_TRUE;
 }
 static INLINE IMG_UINT os_get_apphint_default_BOOL(IMG_BOOL *pAppHintDefault, IMG_BOOL *pVal) {
 	*pVal = *pAppHintDefault;
-	return 0;
+	return IMG_TRUE;
 }
+static INLINE IMG_UINT os_get_apphint_default_STRING(IMG_CHAR **pAppHintDefault, IMG_CHAR *buffer, IMG_UINT32 size) {
+	strlcpy(buffer, *pAppHintDefault, size);
+	return IMG_TRUE;
+}
+
 #define OSGetKMAppHintUINT32(state, name, appHintDefault, value) \
 	os_get_apphint_default_UINT32(appHintDefault, value)
+
 #define OSGetKMAppHintUINT64(state, name, appHintDefault, value) \
 	os_get_apphint_default_UINT64(appHintDefault, value)
+
 #define OSGetKMAppHintBOOL(state, name, appHintDefault, value) \
 	os_get_apphint_default_BOOL(appHintDefault, value)
 
+#define OSGetKMAppHintSTRING(state, name, appHintDefault, buffer, size) \
+	os_get_apphint_default_STRING(appHintDefault, buffer, size)
+
 #endif
+
 #define OSCreateKMAppHintState(state) \
 	PVR_UNREFERENCED_PARAMETER(state)
+
 #define OSFreeKMAppHintState(state) \
 	PVR_UNREFERENCED_PARAMETER(state)
 
-#else /* #if defined(LINUX) */
+#else /* #if defined(LINUX) && !defined(DOXYGEN) */
 
+static INLINE IMG_BOOL os_get_km_apphint_STRING(void *state, IMG_CHAR *name, IMG_CHAR **pAppHintDefault, IMG_CHAR *buffer, size_t size) {
+	PVR_UNREFERENCED_PARAMETER(size);
+	return PVRSRVGetAppHint(state, name, IMG_STRING_TYPE, pAppHintDefault, buffer);
+}
+
+/**************************************************************************/ /*!
+@def OSGetKMAppHintUINT32(state, name, appHintDefault, value)
+@Description    Interface for retrieval of uint32 km app hint.
+				For non-linux operating systems, this macro implements a call
+				from server code to PVRSRVGetAppHint() declared in
+				services_client_porting.h, effectively making it 'shared' code.
+@Input          state             App hint state
+@Input          name              Name used to identify app hint
+@Input          appHintDefault    Default value to be returned if no
+								  app hint is found.
+@Output         value             Pointer to returned app hint value.
+ */ /**************************************************************************/
 #define OSGetKMAppHintUINT32(state, name, appHintDefault, value) \
 	PVRSRVGetAppHint(state, # name, IMG_UINT_TYPE, appHintDefault, value)
+
+/**************************************************************************/ /*!
+@def OSGetKMAppHintUINT64(state, name, appHintDefault, value)
+@Description    Interface for retrieval of uint64 km app hint.
+				For non-linux operating systems, this macro implements a call
+				from server code to PVRSRVGetAppHint() declared in
+				services_client_porting.h, effectively making it 'shared' code.
+@Input          state             App hint state
+@Input          name              Name used to identify app hint
+@Input          appHintDefault    Default value to be returned if no
+								  app hint is found.
+@Output         value             Pointer to returned app hint value.
+ */ /**************************************************************************/
 #define OSGetKMAppHintUINT64(state, name, appHintDefault, value) \
 	PVRSRVGetAppHint(state, # name, IMG_UINT_TYPE, appHintDefault, value)
+
+/**************************************************************************/ /*!
+@def OSGetKMAppHintBOOL(state, name, appHintDefault, value)
+@Description    Interface for retrieval of IMG_BOOL km app hint.
+				For non-linux operating systems, this macro implements a call
+				from server code to PVRSRVGetAppHint() declared in
+				services_client_porting.h, effectively making it 'shared' code.
+@Input          state             App hint state
+@Input          name              Name used to identify app hint
+@Input          appHintDefault    Default value to be returned if no
+								  app hint is found.
+@Output         value             Pointer to returned app hint value.
+ */ /**************************************************************************/
 #define OSGetKMAppHintBOOL(state, name, appHintDefault, value) \
 	PVRSRVGetAppHint(state, # name, IMG_UINT_TYPE, appHintDefault, value)
+
+/**************************************************************************/ /*!
+@def OSGetKMAppHintSTRING(state, name, appHintDefault, buffer, size)
+@Description    Interface for retrieval of string km app hint.
+				For non-linux operating systems, this macro implements a call
+				from server code to PVRSRVGetAppHint() declared in
+				services_client_porting.h, effectively making it 'shared' code.
+@Input          state             App hint state
+@Input          name              Name used to identify app hint
+@Input          appHintDefault    Default value to be returned if no
+								  app hint is found.
+@Output         buffer            Buffer used to return app hint string.
+@Input			size			  Size of the buffer.
+ */ /**************************************************************************/
+#define OSGetKMAppHintSTRING(state, name, appHintDefault, buffer, size) \
+	os_get_km_apphint_STRING(state, # name, appHintDefault, buffer, size)
+
+/**************************************************************************/ /*!
+@def OSCreateKMAppHintState(state)
+@Description    Creates the app hint state.
+				For non-linux operating systems, this macro implements a call
+				from server code to PVRSRVCreateAppHintState() declared in
+				services_client_porting.h, effectively making it 'shared' code.
+@Output          state             App hint state
+ */ /**************************************************************************/
 #define OSCreateKMAppHintState(state) \
-	PVRSRVCreateAppHintState(IMG_SRV_INIT, 0, state)
+	PVRSRVCreateAppHintState(IMG_SRV_UM, 0, state)
+
+/**************************************************************************/ /*!
+@def OSFreeKMAppHintState
+@Description    Free the app hint state.
+				For non-linux operating systems, this macro implements a call
+				from server code to PVRSRVCreateAppHintState() declared in
+				services_client_porting.h, effectively making it 'shared' code.
+@Output          state             App hint state
+ */ /**************************************************************************/
 #define OSFreeKMAppHintState(state) \
-	PVRSRVFreeAppHintState(IMG_SRV_INIT, state);
+	PVRSRVFreeAppHintState(IMG_SRV_UM, state)
 
 #endif /* #if defined(LINUX) */
 

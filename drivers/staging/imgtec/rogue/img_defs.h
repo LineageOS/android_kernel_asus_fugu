@@ -249,11 +249,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 	#define __maybe_unused     __attribute__((unused))
 	#define __malloc           __attribute__((malloc))
 
-	/* Bionic defines those on Android */
-	#if !defined(ANDROID)
+	/* Bionic's <sys/cdefs.h> might have defined these already */
+	#if !defined(__packed)
 		#define __packed           __attribute__((packed))
+	#endif
+	#if !defined(__aligned)
 		#define __aligned(n)       __attribute__((aligned(n)))
-	#endif /* !defined(ANDROID) */
+	#endif
 
 	/* That one compiler that supports attributes but doesn't support
 	 * the printf attribute... */

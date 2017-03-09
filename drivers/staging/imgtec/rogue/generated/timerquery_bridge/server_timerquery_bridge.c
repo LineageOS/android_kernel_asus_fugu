@@ -94,6 +94,7 @@ PVRSRVBridgeRGXBeginTimerQuery(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+
 	return 0;
 }
 
@@ -116,6 +117,7 @@ PVRSRVBridgeRGXEndTimerQuery(IMG_UINT32 ui32DispatchTableEntry,
 	psRGXEndTimerQueryOUT->eError =
 		PVRSRVRGXEndTimerQueryKM(psConnection, OSGetDevData(psConnection)
 					);
+
 
 
 
@@ -153,6 +155,7 @@ PVRSRVBridgeRGXQueryTimer(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+
 	return 0;
 }
 
@@ -175,6 +178,7 @@ PVRSRVBridgeRGXCurrentTime(IMG_UINT32 ui32DispatchTableEntry,
 	psRGXCurrentTimeOUT->eError =
 		PVRSRVRGXCurrentTime(psConnection, OSGetDevData(psConnection),
 					&psRGXCurrentTimeOUT->ui64Time);
+
 
 
 

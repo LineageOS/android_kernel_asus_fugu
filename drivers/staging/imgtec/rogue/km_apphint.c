@@ -48,6 +48,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/moduleparam.h>
 #include <linux/workqueue.h>
 #include <linux/string.h>
+#include <stdbool.h>
 
 /* for action device access */
 #include "pvrsrv.h"
@@ -122,6 +123,12 @@ static const struct apphint_lookup htb_logmode_tbl[] = {
 	{ "restricted", HTB_LOGMODE_RESTRICTEDPID}
 };
 
+static const struct apphint_lookup timecorr_clk_tbl[] = {
+	{ "mono", 0 },
+	{ "mono_raw", 1 },
+	{ "sched", 2 }
+};
+
 /*
 *******************************************************************************
  Data types
@@ -130,6 +137,7 @@ union apphint_value {
 	IMG_UINT64 UINT64;
 	IMG_UINT32 UINT32;
 	IMG_BOOL BOOL;
+	IMG_CHAR *STRING;
 };
 
 struct apphint_action {
@@ -137,15 +145,18 @@ struct apphint_action {
 		PVRSRV_ERROR (*UINT64)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_UINT64 *value);
 		PVRSRV_ERROR (*UINT32)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_UINT32 *value);
 		PVRSRV_ERROR (*BOOL)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_BOOL *value);
+		PVRSRV_ERROR (*STRING)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_CHAR **value);
 	} query;
 	union {
 		PVRSRV_ERROR (*UINT64)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_UINT64 value);
 		PVRSRV_ERROR (*UINT32)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_UINT32 value);
 		PVRSRV_ERROR (*BOOL)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_BOOL value);
+		PVRSRV_ERROR (*STRING)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_CHAR *value);
 	} set;
 	const PVRSRV_DEVICE_NODE *device;
 	const void *private_data;
 	union apphint_value stored;
+	bool free;
 };
 
 struct apphint_param {
@@ -177,33 +188,39 @@ struct apphint_work {
 *******************************************************************************
  Initialization / configuration table data
 ******************************************************************************/
+#define UINT32Bitfield UINT32
+#define UINT32List UINT32
+
 static const struct apphint_init_data init_data_buildvar[] = {
 #define X(a, b, c, d, e) \
-	{APPHINT_ID_ ## a, APPHINT_CLASS_ ## c, #a, {d} },
+	{APPHINT_ID_ ## a, APPHINT_CLASS_ ## c, #a, {.b=d} },
 	APPHINT_LIST_BUILDVAR
 #undef X
 };
 
 static const struct apphint_init_data init_data_modparam[] = {
 #define X(a, b, c, d, e) \
-	{APPHINT_ID_ ## a, APPHINT_CLASS_ ## c, #a, {d} },
+	{APPHINT_ID_ ## a, APPHINT_CLASS_ ## c, #a, {.b=d} },
 	APPHINT_LIST_MODPARAM
 #undef X
 };
 
 static const struct apphint_init_data init_data_debugfs[] = {
 #define X(a, b, c, d, e) \
-	{APPHINT_ID_ ## a, APPHINT_CLASS_ ## c, #a, {d} },
+	{APPHINT_ID_ ## a, APPHINT_CLASS_ ## c, #a, {.b=d} },
 	APPHINT_LIST_DEBUGFS
 #undef X
 };
 
 static const struct apphint_init_data init_data_debugfs_device[] = {
 #define X(a, b, c, d, e) \
-	{APPHINT_ID_ ## a, APPHINT_CLASS_ ## c, #a, {d} },
+	{APPHINT_ID_ ## a, APPHINT_CLASS_ ## c, #a, {.b=d} },
 	APPHINT_LIST_DEBUGFS_DEVICE
 #undef X
 };
+
+#undef UINT32Bitfield
+#undef UINT32List
 
 /* Don't use the kernel ARRAY_SIZE macro here because it checks
  * __must_be_array() and we need to be able to use this safely on a NULL ptr.
@@ -260,10 +277,14 @@ static struct apphint_state
  * provided on the command line are not overwritten by defaults.
  */
 	.val = {
+#define UINT32Bitfield UINT32
+#define UINT32List UINT32
 #define X(a, b, c, d, e) \
-	{ {NULL}, {NULL}, NULL, NULL, {d} },
+	{ {NULL}, {NULL}, NULL, NULL, {.b=d}, false },
 	APPHINT_LIST_ALL
 #undef X
+#undef UINT32Bitfield
+#undef UINT32List
 	},
 	.initialized = 0,
 	.num_devices = 0
@@ -338,6 +359,13 @@ static void apphint_action_worker(struct work_struct *work)
 			                     value.BOOL);
 			break;
 
+		case APPHINT_DATA_TYPE_STRING:
+			result = a->set.STRING(a->device,
+								   a->private_data,
+								   value.STRING);
+			kfree(value.STRING);
+			break;
+
 		default:
 			PVR_DPF((PVR_DBG_ERROR,
 			         "%s: unrecognised data type (%d), index (%d)",
@@ -350,12 +378,17 @@ static void apphint_action_worker(struct work_struct *work)
 			         __func__, PVRSRVGetErrorStringKM(result)));
 		}
 	} else {
+		if (a->free) {
+			kfree(a->stored.STRING);
+		}
 		a->stored = value;
+		if (param_lookup[id].data_type == APPHINT_DATA_TYPE_STRING) {
+			a->free = true;
+		}
 		PVR_DPF((PVR_DBG_MESSAGE,
 		         "%s: AppHint value updated before handler is registered, ID(%d)",
 		         __func__, id));
 	}
-
 	kfree((void *)work_pkt);
 }
 
@@ -373,12 +406,17 @@ static void apphint_action(union apphint_value new_value,
 			PVR_DPF((PVR_DBG_ERROR,
 				"%s: failed to queue apphint change request",
 				__func__));
+			goto err_exit;
 		}
 	} else {
 		PVR_DPF((PVR_DBG_ERROR,
 			"%s: failed to alloc memory for apphint change request",
 			__func__));
+			goto err_exit;
 	}
+	return;
+err_exit:
+	kfree(new_value.STRING);
 }
 
 /**
@@ -505,6 +543,28 @@ static int apphint_read(char *buffer, size_t count, APPHINT_ID ue,
 		}
 		break;
 	}
+	case APPHINT_DATA_TYPE_STRING:
+	{
+		/* buffer may include '\n', remove it */
+		char *string = strsep(&buffer, "\n");
+		size_t len = strlen(string);
+
+		if (!len) {
+			result = -EINVAL;
+			goto err_exit;
+		}
+
+		++len;
+
+		value->STRING = kmalloc(len, GFP_KERNEL);
+		if (!value->STRING) {
+			result = -ENOMEM;
+			goto err_exit;
+		}
+
+		strlcpy(value->STRING, string, len);
+		break;
+	}
 	default:
 		result = -EINVAL;
 		goto err_exit;
@@ -552,6 +612,11 @@ static int apphint_write(char *buffer, const size_t size,
 			                       &value.BOOL);
 			break;
 
+		case APPHINT_DATA_TYPE_STRING:
+			result = a->query.STRING(a->device,
+									 a->private_data,
+									 &value.STRING);
+			break;
 		default:
 			PVR_DPF((PVR_DBG_ERROR,
 			         "%s: unrecognised data type (%d), index (%d)",
@@ -581,6 +646,16 @@ static int apphint_write(char *buffer, const size_t size,
 		result += snprintf(buffer + result, size - result,
 			"%s",
 			value.BOOL ? "Y" : "N");
+		break;
+	case APPHINT_DATA_TYPE_STRING:
+		if (value.STRING) {
+			result += snprintf(buffer + result, size - result,
+				"%s",
+				*value.STRING ? value.STRING : "(none)");
+		} else {
+			result += snprintf(buffer + result, size - result,
+			"(none)");
+		}
 		break;
 	case APPHINT_DATA_TYPE_UINT32List:
 	{
@@ -666,8 +741,12 @@ static int apphint_kparam_set(const char *val, const struct kernel_param *kp)
 	get_apphint_id_from_action_addr(kp->arg, &id);
 	if (result < APPHINT_BUFFER_SIZE) {
 		result = apphint_read(val_copy, result, id, &value);
-		if (result >= 0)
+		if (result >= 0) {
 			((struct apphint_action *)kp->arg)->stored = value;
+			if (param_lookup[id].data_type == APPHINT_DATA_TYPE_STRING) {
+				((struct apphint_action *)kp->arg)->free = true;
+			}
+		}
 	} else {
 		PVR_DPF((PVR_DBG_ERROR, "%s: String too long", __func__));
 	}
@@ -1114,6 +1193,15 @@ void pvr_apphint_deinit(void)
 			pvr_apphint_device_unregister(apphint.devices[i]);
 	}
 
+	/* free all alloc'd string apphints and set to NULL */
+	for (i = 0; i < ARRAY_SIZE(apphint.val); i++) {
+		if (apphint.val[i].free && apphint.val[i].stored.STRING) {
+			kfree(apphint.val[i].stored.STRING);
+			apphint.val[i].stored.STRING = NULL;
+			apphint.val[i].free = false;
+		}
+	}
+
 	apphint_debugfs_deinit(APPHINT_DEBUGFS_ID_MAX,
 			&apphint.debugfs_rootdir, apphint.debugfs_entry);
 	apphint_debugfs_deinit(APPHINT_BUILDVAR_ID_MAX,
@@ -1165,6 +1253,17 @@ int pvr_apphint_get_bool(APPHINT_ID ue, IMG_BOOL *pVal)
 	if (ue < APPHINT_ID_MAX) {
 		error = 0;
 		*pVal = apphint.val[ue].stored.BOOL;
+	}
+	return error;
+}
+
+int pvr_apphint_get_string(APPHINT_ID ue, IMG_CHAR *pBuffer, size_t size)
+{
+	int error = -ERANGE;
+	if (ue < APPHINT_ID_MAX && apphint.val[ue].stored.STRING) {
+		if (strlcpy(pBuffer, apphint.val[ue].stored.STRING, size) < size) {
+			error = 0;
+		}
 	}
 	return error;
 }
@@ -1275,6 +1374,43 @@ void pvr_apphint_register_handlers_bool(APPHINT_ID id,
 	apphint.val[id + device_value_offset] = (struct apphint_action){
 		.query.BOOL = query,
 		.set.BOOL = set,
+		.device = device,
+		.private_data = private_data,
+		.stored = apphint.val[id + device_value_offset].stored
+	};
+}
+
+void pvr_apphint_register_handlers_string(APPHINT_ID id,
+	PVRSRV_ERROR (*query)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_CHAR **value),
+	PVRSRV_ERROR (*set)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_CHAR *value),
+	const PVRSRV_DEVICE_NODE *device,
+	const void *private_data)
+{
+	int device_value_offset;
+
+	if (id >= APPHINT_ID_MAX) {
+		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: AppHint ID (%d) is out of range, max (%d)",
+		         __func__, id, APPHINT_ID_MAX-1));
+		return;
+	}
+
+	get_value_offset_from_device(device, &device_value_offset);
+
+	switch (param_lookup[id].data_type) {
+	case APPHINT_DATA_TYPE_STRING:
+		break;
+
+	default:
+		PVR_DPF((PVR_DBG_ERROR,
+		         "%s: Does not match AppHint data type for ID (%d)",
+		         __func__, id));
+		return;
+	}
+
+	apphint.val[id + device_value_offset] = (struct apphint_action){
+		.query.STRING = query,
+		.set.STRING = set,
 		.device = device,
 		.private_data = private_data,
 		.stored = apphint.val[id + device_value_offset].stored

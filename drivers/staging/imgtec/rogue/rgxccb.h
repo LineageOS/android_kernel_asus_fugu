@@ -55,6 +55,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvr_notifier.h"
 
 #define MAX_CLIENT_CCB_NAME	30
+#define SYNC_FLAG_MASK_ALL  IMG_UINT32_MAX
 
 typedef struct _RGX_CLIENT_CCB_ RGX_CLIENT_CCB;
 
@@ -78,6 +79,7 @@ typedef struct _RGX_CCB_CMD_HELPER_DATA_ {
 
 	IMG_UINT32					ui32ServerSyncCount;
 	IMG_UINT32					*paui32ServerSyncFlags;
+	IMG_UINT32					ui32ServerSyncFlagMask;
 	SERVER_SYNC_PRIMITIVE		**papsServerSyncs;
 	
 	RGXFWIF_CCB_CMD_TYPE		eType;
@@ -205,6 +207,7 @@ PVRSRV_ERROR RGXCmdHelperInitCmdCCB(RGX_CLIENT_CCB            *psClientCCB,
                                     IMG_UINT32                *paui32UpdateValue,
                                     IMG_UINT32                ui32ServerSyncCount,
                                     IMG_UINT32                *paui32ServerSyncFlags,
+                                    IMG_UINT32                ui32ServerSyncFlagMask,
                                     SERVER_SYNC_PRIMITIVE     **papsServerSyncs,
                                     IMG_UINT32                ui32CmdSize,
                                     IMG_PBYTE                 pui8DMCmd,
@@ -247,5 +250,5 @@ void DumpCCB(PVRSRV_RGXDEV_INFO *psDevInfo,
 			void *pvDumpDebugFile);
 #endif
 
-PVRSRV_ERROR CheckForStalledCCB(RGX_CLIENT_CCB  *psCurrentClientCCB);
+PVRSRV_ERROR CheckForStalledCCB(RGX_CLIENT_CCB  *psCurrentClientCCB, RGX_KICK_TYPE_DM eKickTypeDM);
 #endif /* __RGXCCB_H__ */

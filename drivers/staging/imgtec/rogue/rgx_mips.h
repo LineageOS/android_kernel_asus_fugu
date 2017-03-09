@@ -211,6 +211,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGXMIPSFW_NMI_SYNC_FLAG_OFFSET                        (0x0)
 #define RGXMIPSFW_NMI_STATE_OFFSET                            (0x1)
 
+/*
+ * MIPS fault data
+ */
+/* Base address of the fault data within the bootloader/NMI data page */
+#define RGXMIPSFW_FAULT_DATA_BASE                             (0x280)
+
 /* The things that follow are excluded when compiling assembly sources*/
 #if !defined (RGXMIPSFW_ASSEMBLY_CODE)
 #include "img_types.h"
@@ -378,6 +384,13 @@ typedef struct {
 	IMG_UINT32 ui32BadInstr;
 	RGX_MIPS_TLB_ENTRY asTLB[RGXMIPSFW_NUMBER_OF_TLB_ENTRIES];
 } RGX_MIPS_STATE;
+
+typedef struct {
+	IMG_UINT32 ui32FaultPageEntryLo;
+	IMG_UINT32 ui32BadVAddr;
+	IMG_UINT32 ui32EntryLo0;
+	IMG_UINT32 ui32EntryLo1;
+} RGX_MIPS_FAULT_DATA;
 
 #endif  /* RGXMIPSFW_ASSEMBLY_CODE */
 

@@ -135,6 +135,10 @@ static PVRSRV_ERROR RGXSoftReset(PVRSRV_DEVICE_NODE *psDeviceNode, IMG_UINT64  u
 #define RGX_MMU_PAGE_SIZE_MAX RGX_MMU_PAGE_SIZE_2MB
 
 #define VAR(x) #x
+
+#define MAX_BVNC_LEN (12)
+#define RGXBVNC_BUFFER_SIZE (((PVRSRV_MAX_DEVICES)*(MAX_BVNC_LEN))+1)
+
 /* List of BVNC strings given as module param & count*/
 IMG_PCHAR gazRGXBVNCList[PVRSRV_MAX_DEVICES];
 IMG_UINT32 gui32RGXLoadTimeDevCount;
@@ -685,7 +689,7 @@ static PVRSRV_ERROR RGXPDumpBootldrData(PVRSRV_DEVICE_NODE *psDeviceNode,
 
 	MMU_AcquireBaseAddr(psDevInfo->psKernelMMUCtx, &sTmpAddr);
 
-	eError = PDumpPTBaseObjectToMem64(psDeviceNode->pszMMUPxPDumpMemSpaceName,
+	eError = PDumpPTBaseObjectToMem64(psDeviceNode->psFirmwareMMUDevAttrs->pszMMUPxPDumpMemSpaceName,
 	                                  psFWDataPMR,
 	                                  0,
 	                                  ui32ParamOffset,
@@ -938,6 +942,21 @@ PVRSRV_ERROR PVRSRVRGXInitDevPart2KM (CONNECTION_DATA       *psConnection,
 	psDevInfo->ui32DeviceFlags = 0;
 	RGXSetDeviceFlags(psDevInfo, ui32DeviceFlags, IMG_TRUE);
 
+#if !defined(PVRSRV_GPUVIRT_GUESTDRV)
+	/* Allocate DVFS Table (needs to be allocated before SUPPORT_GPUTRACE_EVENTS
+	 * is initialised because there is a dependency between them) */
+	psDevInfo->psGpuDVFSTable = OSAllocZMem(sizeof(*(psDevInfo->psGpuDVFSTable)));
+	if (psDevInfo->psGpuDVFSTable == NULL)
+	{
+		PVR_DPF((PVR_DBG_ERROR,"PVRSRVRGXInitDevPart2KM: failed to allocate gpu dvfs table storage"));
+		return PVRSRV_ERROR_OUT_OF_MEMORY;
+	}
+
+	/* Reset DVFS Table */
+	psDevInfo->psGpuDVFSTable->ui32CurrentDVFSId = 0;
+	psDevInfo->psGpuDVFSTable->aui32DVFSClock[0] = 0;
+#endif /* !defined(PVRSRV_GPUVIRT_GUESTDRV) */
+
 	/* Initialise HWPerfHost buffer. */
 	if (RGXHWPerfHostInit(ui32HWPerfHostBufSizeKB) == PVRSRV_OK)
 	{
@@ -1030,20 +1049,7 @@ PVRSRV_ERROR PVRSRVRGXInitDevPart2KM (CONNECTION_DATA       *psConnection,
 		}
 	}
 
-
 #if !defined(PVRSRV_GPUVIRT_GUESTDRV)
-	/* Allocate DVFS Table */
-	psDevInfo->psGpuDVFSTable = OSAllocZMem(sizeof(*(psDevInfo->psGpuDVFSTable)));
-	if (psDevInfo->psGpuDVFSTable == NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR,"PVRSRVRGXInitDevPart2KM: failed to allocate gpu dvfs table storage"));
-		return PVRSRV_ERROR_OUT_OF_MEMORY;
-	}
-
-	/* Reset DVFS Table */
-	psDevInfo->psGpuDVFSTable->ui32CurrentDVFSId = 0;
-	psDevInfo->psGpuDVFSTable->aui32DVFSClock[0] = 0;
-
 	/* Setup GPU utilisation stats update callback */
 #if !defined(NO_HARDWARE)
 	psDevInfo->pfnGetGpuUtilStats = RGXGetGpuUtilStats;
@@ -1086,6 +1092,8 @@ PVRSRV_ERROR PVRSRVRGXInitDevPart2KM (CONNECTION_DATA       *psConnection,
 	                                    RGXSetAPMState,
 	                                    psDeviceNode,
 	                                    NULL);
+
+	RGXGPUFreqCalibrationInitAppHintCallbacks(psDeviceNode);
 
 	/* 
 		Register the device with the power manager.
@@ -2498,7 +2506,7 @@ static PVRSRV_ERROR RGXAllocTrampoline(PVRSRV_DEVICE_NODE *psDeviceNode)
 					 0,         // (init) u8Value
 					 IMG_FALSE, // bInitPage,
 #if defined(PDUMP)
-					 psDeviceNode->pszMMUPxPDumpMemSpaceName,
+					 psDeviceNode->psFirmwareMMUDevAttrs->pszMMUPxPDumpMemSpaceName,
 					 "TrampolineRegion",
 					 &asTrampoline[i].hPdumpPages,
 #endif
@@ -2819,7 +2827,7 @@ PVRSRV_ERROR RGXFWTraceSetFilter(const PVRSRV_DEVICE_NODE *psDeviceNode,
 	IMG_UINT32 ui32RGXFWLogType;
 
 	eResult = RGXFWTraceQueryLogType(psDeviceNode, NULL, &ui32RGXFWLogType);
-	if (PVRSRV_OK != eResult)
+	if (PVRSRV_OK == eResult)
 	{
 		if (ui32Value && 1 != ui32RGXFWLogType)
 		{
@@ -3464,18 +3472,17 @@ PVRSRV_ERROR DevDeInitRGX (PVRSRV_DEVICE_NODE *psDeviceNode)
 				return eError;
 			}
 		}
+	}
 
-
-		/* UnMap Regs */
-		if (psDevInfo->pvRegsBaseKM != NULL)
-		{
+	/* UnMap Regs */
+	if (psDevInfo->pvRegsBaseKM != NULL)
+	{
 #if !defined(NO_HARDWARE)
-			OSUnMapPhysToLin(psDevInfo->pvRegsBaseKM,
-							 psDevInfo->ui32RegSize,
-							 PVRSRV_MEMALLOCFLAG_CPU_UNCACHED);
+		OSUnMapPhysToLin(psDevInfo->pvRegsBaseKM,
+						 psDevInfo->ui32RegSize,
+						 PVRSRV_MEMALLOCFLAG_CPU_UNCACHED);
 #endif /* !NO_HARDWARE */
-			psDevInfo->pvRegsBaseKM = NULL;
-		}
+		psDevInfo->pvRegsBaseKM = NULL;
 	}
 
 #if 0 /* not required at this time */
@@ -3732,6 +3739,15 @@ static PVRSRV_ERROR RGXInitHeaps(PVRSRV_RGXDEV_INFO *psDevInfo,
 
 	INIT_HEAP(GENERAL_SVM);
 	INIT_HEAP(GENERAL);
+
+	if (ui64ErnsBrns & FIX_HW_BRN_63142_BIT_MASK)
+	{
+		/* BRN63142 heap must be at the top of an aligned 16GB range. */
+		INIT_HEAP(RGNHDR_BRN_63142);
+		PVR_ASSERT((RGX_RGNHDR_BRN_63142_HEAP_BASE & IMG_UINT64_C(0x3FFFFFFFF)) +
+		           RGX_RGNHDR_BRN_63142_HEAP_SIZE == IMG_UINT64_C(0x400000000));
+	}
+
 	INIT_HEAP(GENERAL_NON4K);
 	INIT_HEAP(VISTEST);
 
@@ -4124,15 +4140,70 @@ static void RGXParseBVNCFeatures(PVRSRV_DEVICE_NODE *psDeviceNode, IMG_UINT64 ui
 }
 #undef GET_FEAT_VALUE
 
+#if defined(SUPPORT_KERNEL_SRVINIT)
+static void RGXAcquireBVNCAppHint(IMG_CHAR *pszBVNCAppHint,
+								  IMG_CHAR **apszRGXBVNCList,
+								  IMG_UINT32 ui32BVNCListCount,
+								  IMG_UINT32 *pui32BVNCCount)
+{
+	IMG_CHAR *pszAppHintDefault = NULL;
+	void *pvAppHintState = NULL;
+	IMG_UINT32 ui32BVNCIndex = 0;
+
+	OSCreateKMAppHintState(&pvAppHintState);
+	pszAppHintDefault = PVRSRV_APPHINT_RGXBVNC;
+	if (!OSGetKMAppHintSTRING(pvAppHintState,
+						 RGXBVNC,
+						 &pszAppHintDefault,
+						 pszBVNCAppHint,
+						 RGXBVNC_BUFFER_SIZE))
+	{
+		*pui32BVNCCount = 0;
+		return;
+	}
+	OSFreeKMAppHintState(pvAppHintState);
+
+	while (*pszBVNCAppHint != '\0')
+	{
+		if (ui32BVNCIndex >= ui32BVNCListCount)
+		{
+			break;
+		}
+		apszRGXBVNCList[ui32BVNCIndex++] = pszBVNCAppHint;
+		while (1)
+		{
+			if (*pszBVNCAppHint == ',')
+			{
+				pszBVNCAppHint[0] = '\0';
+				pszBVNCAppHint++;
+				break;
+			} else if (*pszBVNCAppHint == '\0')
+			{
+				break;
+			}
+			pszBVNCAppHint++;
+		}
+	}
+	*pui32BVNCCount = ui32BVNCIndex;
+}
+#endif
+
 /*Function that parses the BVNC List passed as module parameter */
-static PVRSRV_ERROR RGXParseModParamBVNCList(IMG_UINT64 *pB,
-												  IMG_UINT64 *pV,
-												  IMG_UINT64 *pN,
-												  IMG_UINT64 *pC,
-												  const IMG_UINT32 ui32RGXDevCount)
+static PVRSRV_ERROR RGXParseBVNCList(IMG_UINT64 *pB,
+									 IMG_UINT64 *pV,
+									 IMG_UINT64 *pN,
+									 IMG_UINT64 *pC,
+									 const IMG_UINT32 ui32RGXDevCount)
 {
 	unsigned int ui32ScanCount = 0;
-	IMG_CHAR *psBVNCString = NULL;
+	IMG_CHAR *pszBVNCString = NULL;
+
+#if defined(SUPPORT_KERNEL_SRVINIT)
+	if (ui32RGXDevCount == 0) {
+		IMG_CHAR pszBVNCAppHint[RGXBVNC_BUFFER_SIZE] = {};
+		RGXAcquireBVNCAppHint(pszBVNCAppHint, gazRGXBVNCList, PVRSRV_MAX_DEVICES, &gui32RGXLoadTimeDevCount);
+	}
+#endif
 
 	/*4 components of a BVNC string is B, V, N & C */
 #define RGX_BVNC_INFO_PARAMS (4)
@@ -4141,7 +4212,7 @@ static PVRSRV_ERROR RGXParseModParamBVNCList(IMG_UINT64 *pB,
 	 * devices detected */
 	if(1 == gui32RGXLoadTimeDevCount)
 	{
-		psBVNCString = gazRGXBVNCList[0];
+		pszBVNCString = gazRGXBVNCList[0];
 	}else
 	{
 
@@ -4154,11 +4225,15 @@ static PVRSRV_ERROR RGXParseModParamBVNCList(IMG_UINT64 *pB,
 			PVR_DPF((PVR_DBG_MESSAGE, "%s, ", gazRGXBVNCList[i]));
 		}
 #endif
-		/* gazRGXBVNCList count should always be less than the total
-		 * number of RGX devices detected */
+
+		if (gui32RGXLoadTimeDevCount == 0)
+			return PVRSRV_ERROR_INVALID_BVNC_PARAMS;
+
+		/* total number of RGX devices detected should always be
+		 * less than the gazRGXBVNCList count */
 		if(ui32RGXDevCount < gui32RGXLoadTimeDevCount)
 		{
-			psBVNCString = gazRGXBVNCList[ui32RGXDevCount];
+			pszBVNCString = gazRGXBVNCList[ui32RGXDevCount];
 		}else
 		{
 			PVR_DPF((PVR_DBG_ERROR, "%s: Given module parameters list is shorter than "
@@ -4167,20 +4242,20 @@ static PVRSRV_ERROR RGXParseModParamBVNCList(IMG_UINT64 *pB,
 		}
 	}
 
-	if(NULL == psBVNCString)
+	if(NULL == pszBVNCString)
 	{
 		return PVRSRV_ERROR_INVALID_BVNC_PARAMS;
 	}
 
 	/* Parse the given RGX_BVNC string */
-	ui32ScanCount = OSVSScanf(psBVNCString, "%llu.%llu.%llu.%llu", pB, pV, pN, pC);
+	ui32ScanCount = OSVSScanf(pszBVNCString, "%llu.%llu.%llu.%llu", pB, pV, pN, pC);
 	if(RGX_BVNC_INFO_PARAMS != ui32ScanCount)
 	{
-		ui32ScanCount = OSVSScanf(psBVNCString, "%llu.%llup.%llu.%llu", pB, pV, pN, pC);
+		ui32ScanCount = OSVSScanf(pszBVNCString, "%llu.%llup.%llu.%llu", pB, pV, pN, pC);
 	}
 	if(RGX_BVNC_INFO_PARAMS == ui32ScanCount)
 	{
-		PVR_LOG(("BVNC module parameter honoured: %s", psBVNCString));
+		PVR_LOG(("BVNC module parameter honoured: %s", pszBVNCString));
 	}else
 	{
 		return PVRSRV_ERROR_INVALID_BVNC_PARAMS;
@@ -4194,7 +4269,7 @@ static PVRSRV_ERROR RGXParseModParamBVNCList(IMG_UINT64 *pB,
  * The config info include features, errata etc etc */
 static PVRSRV_ERROR RGXGetBVNCConfig(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
-	static IMG_UINT32 ui32TotalRGXDevCnt = 0;
+	static IMG_UINT32 ui32RGXDevCnt = 0;
 	PVRSRV_ERROR eError;
 	IMG_BOOL bDetectBVNC = IMG_TRUE;
 
@@ -4206,15 +4281,11 @@ static PVRSRV_ERROR RGXGetBVNCConfig(PVRSRV_DEVICE_NODE *psDeviceNode)
 	2. Detected BVNC (Hardware) / Compiled BVNC (No Hardware)
 	3. If none of above report failure */
 
-	/* Check for load time RGX BVNC config
-	 * Parse only when one given as module parameter */
-	if(0 != gui32RGXLoadTimeDevCount)
+	/* Check for load time RGX BVNC config */
+	eError = RGXParseBVNCList(&B,&V,&N,&C, ui32RGXDevCnt);
+	if(PVRSRV_OK == eError)
 	{
-		eError = RGXParseModParamBVNCList(&B,&V,&N,&C, ui32TotalRGXDevCnt);
-		if(PVRSRV_OK == eError)
-		{
-			bDetectBVNC = IMG_FALSE;
-		}
+		bDetectBVNC = IMG_FALSE;
 	}
 
 	/*if BVNC is not specified as module parameter or if specified BVNC list is insufficient
@@ -4384,7 +4455,7 @@ static PVRSRV_ERROR RGXGetBVNCConfig(PVRSRV_DEVICE_NODE *psDeviceNode)
 	psDevInfo->sDevFeatureCfg.ui32N = (IMG_UINT32)N;
 	psDevInfo->sDevFeatureCfg.ui32C = (IMG_UINT32)C;
 
-	ui32TotalRGXDevCnt++;
+	ui32RGXDevCnt++;
 #if defined(DEBUG)
 	RGXDumpParsedBVNCConfig(psDeviceNode);
 #endif

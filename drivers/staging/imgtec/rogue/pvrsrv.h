@@ -289,8 +289,10 @@ int PVRSRVGetDriverStatus(void);
 
  @Return : IMG_TRUE if the given bridge group is enabled
 *****************************************************************************/
-static inline IMG_BOOL PVRSRVIsBridgeEnabled(IMG_UINT32 ui32BridgeGroup)
+static inline IMG_BOOL PVRSRVIsBridgeEnabled(IMG_HANDLE hServices, IMG_UINT32 ui32BridgeGroup)
 {
+	PVR_UNREFERENCED_PARAMETER(hServices);
+
 #if defined(SUPPORT_RGX)
 	if(ui32BridgeGroup >= PVRSRV_BRIDGE_RGX_FIRST)
 	{

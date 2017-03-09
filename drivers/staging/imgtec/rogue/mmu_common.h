@@ -116,6 +116,8 @@ typedef struct _MMU_DEVICEATTRIBS_
 {
 	PDUMP_MMU_TYPE eMMUType;
 
+	IMG_CHAR *pszMMUPxPDumpMemSpaceName;
+
 	/*! The type of the top level object */
 	MMU_LEVEL eTopLevel;
 

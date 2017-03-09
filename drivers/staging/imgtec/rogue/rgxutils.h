@@ -184,6 +184,21 @@ PVRSRV_ERROR RGXRunScript(PVRSRV_RGXDEV_INFO *psDevInfo,
 				DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 				void *pvDumpDebugFile);
 
+/*!
+******************************************************************************
+
+ @Function    RGXStringifyKickTypeDM
+
+ @Description Gives the kick type DM name stringified
+
+ @Input       Kick type DM
+
+ @Return      Array containing the kick type DM name
+
+******************************************************************************/
+const char* RGXStringifyKickTypeDM(RGX_KICK_TYPE_DM eKickTypeDM);
+                                                                             
+#define RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(bitmask, eKickTypeDM) bitmask & eKickTypeDM ? RGXStringifyKickTypeDM(eKickTypeDM) : ""
 /******************************************************************************
  End of file (rgxutils.h)
 ******************************************************************************/

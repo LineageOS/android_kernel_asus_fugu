@@ -48,6 +48,44 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 #include "rogue_trace_events.h"
 
+static bool fence_update_event_enabled, fence_check_event_enabled;
+
+bool trace_rogue_are_fence_updates_traced(void)
+{
+	return fence_update_event_enabled;
+}
+
+bool trace_rogue_are_fence_checks_traced(void)
+{
+	return fence_check_event_enabled;
+}
+
+/*
+ * Call backs referenced from rogue_trace_events.h. Note that these are not
+ * thread-safe, however, since running trace code when tracing is not enabled is
+ * simply a no-op, there is no harm in it.
+ */
+
+void trace_fence_update_enabled_callback(void)
+{
+	fence_update_event_enabled = true;
+}
+
+void trace_fence_update_disabled_callback(void)
+{
+	fence_update_event_enabled = false;
+}
+
+void trace_fence_check_enabled_callback(void)
+{
+	fence_check_event_enabled = true;
+}
+
+void trace_fence_check_disabled_callback(void)
+{
+	fence_check_event_enabled = false;
+}
+
 /* This is a helper that calls trace_rogue_fence_update for each fence in an
  * array.
  */

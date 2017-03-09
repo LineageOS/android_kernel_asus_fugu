@@ -301,6 +301,7 @@ PVRSRV_ERROR PVRSRVRGXKickSyncKM(RGX_SERVER_KICKSYNC_CONTEXT * psKickSyncContext
 	                                paui32ClientUpdateValue,
 	                                ui32ServerSyncPrims,
 	                                paui32ServerSyncFlags,
+	                                SYNC_FLAG_MASK_ALL,
 	                                pasServerSyncs,
 	                                0,
 	                                NULL,

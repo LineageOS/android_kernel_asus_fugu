@@ -509,7 +509,7 @@ static PVRSRV_ERROR DevmemIntAllocDummyPage(DEVMEMINT_HEAP *psDevmemHeap)
 				u8Value,
 				bInitPage,
 #if	defined(PDUMP)
-				psDevNode->pszMMUPxPDumpMemSpaceName,
+				psDevNode->psMMUDevAttrs->pszMMUPxPDumpMemSpaceName,
 				DUMMY_PAGE,
 				&psDevNode->sDummyPage.hPdumpDummyPg,
 #endif
