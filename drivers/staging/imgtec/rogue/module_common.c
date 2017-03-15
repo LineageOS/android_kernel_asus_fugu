@@ -96,14 +96,14 @@ MODULE_PARM_DESC(gPMRAllocFail, "When number of PMR allocs reaches"
 				 "means that alloc function will behave normally).");
 #endif /* defined(DEBUG) */
 
-#if !defined(SUPPORT_KERNEL_SRVINIT)
+
 extern unsigned int gui32RGXLoadTimeDevCount;
 
 extern char *gazRGXBVNCList[PVRSRV_MAX_DEVICES];
-module_param_array_named(RGXBVNC, gazRGXBVNCList, charp, &gui32RGXLoadTimeDevCount, S_IRUGO);
-MODULE_PARM_DESC(RGXBVNC, "Array of comma separated strings that define BVNC info of the devices. "
-		"module parameter usage is RGXBVNC=x.x.x.x,y.y.y.y etc");
-#endif
+module_param_array_named(RGX_BVNC, gazRGXBVNCList, charp, &gui32RGXLoadTimeDevCount, S_IRUGO);
+MODULE_PARM_DESC(RGX_BVNC, "Array of comma separated strings that define BVNC info of the devices. "
+		"module parameter usage is RGX_BVNC=x.x.x.x,y.y.y.y etc");
+
 
 #if defined(SUPPORT_DISPLAY_CLASS)
 /* Display class interface */

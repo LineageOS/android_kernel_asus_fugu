@@ -428,53 +428,6 @@ PVRSRV_ERROR RGXRunScript(PVRSRV_RGXDEV_INFO *psDevInfo,
 	return PVRSRV_ERROR_UNKNOWN_SCRIPT_OPERATION;
 }
 
-inline const char * RGXStringifyKickTypeDM(RGX_KICK_TYPE_DM eKickTypeDM)
-{
-	/*      
-	 *  This is based on the currently defined DMs.             
-	 *  If you need to modify the enum in include/rgx_common.h
-	 *  please keep this function up-to-date too.
-	 *
-	 *       typedef enum _RGXFWIF_DM_
-	 *       {
-	 *           RGXFWIF_DM_GP        = 0,
-	 *           RGXFWIF_DM_2D        = 1, 
-	 *           RGXFWIF_DM_TDM       = 1,
-	 *           RGXFWIF_DM_TA        = 2,
-	 *           RGXFWIF_DM_3D        = 3,
-	 *           RGXFWIF_DM_CDM       = 4,
-	 *           RGXFWIF_DM_RTU       = 5,
-	 *           RGXFWIF_DM_SHG       = 6,
-	 *           RGXFWIF_DM_LAST,
-	 *           RGXFWIF_DM_FORCE_I32 = 0x7fffffff   
-	 *       } RGXFWIF_DM;
-	 */
-	PVR_ASSERT(eKickTypeDM < RGX_KICK_TYPE_DM_LAST);
-
-	switch(eKickTypeDM) {
-		case RGX_KICK_TYPE_DM_GP:
-			return "GP ";
-		case RGX_KICK_TYPE_DM_TDM_2D:   
-			return "TDM/2D ";
-		case RGX_KICK_TYPE_DM_TA:   
-			return "TA ";
-		case RGX_KICK_TYPE_DM_3D:
-			return "3D ";
-		case RGX_KICK_TYPE_DM_CDM:
-			return "CDM ";
-		case RGX_KICK_TYPE_DM_RTU:
-			return "RTU ";
-		case RGX_KICK_TYPE_DM_SHG:
-			return "SHG ";
-		case RGX_KICK_TYPE_DM_TQ2D:
-			return "TQ2D ";
-		case RGX_KICK_TYPE_DM_TQ3D:
-			return "TQ3D ";
-		default:
-			return "Invalid DM ";
-	}
-}
-
 /******************************************************************************
  End of file (rgxutils.c)
 ******************************************************************************/

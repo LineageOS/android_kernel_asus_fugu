@@ -205,8 +205,7 @@ static INLINE DLLIST_NODE *_CleanupThreadWorkListPop(PVRSRV_DATA *psPVRSRVData)
 }
 
 /* Process the cleanup thread work list */
-static IMG_BOOL _CleanupThreadProcessWorkList(PVRSRV_DATA *psPVRSRVData,
-                                              IMG_BOOL *pbUseGlobalEO)
+static IMG_BOOL _CleanupThreadProcessWorkList(PVRSRV_DATA *psPVRSRVData)
 {
 	DLLIST_NODE *psNodeIter, *psNodeLast;
 	PVRSRV_ERROR eError;
@@ -241,7 +240,6 @@ static IMG_BOOL _CleanupThreadProcessWorkList(PVRSRV_DATA *psPVRSRVData,
 			 */
 			pfnFree = psData->pfnFree;
 
-			*pbUseGlobalEO = psData->bDependsOnHW;
 			eError = pfnFree(psData->pvData);
 
 			if(eError != PVRSRV_OK)
@@ -300,10 +298,8 @@ static void CleanupThread(void *pvData)
 {
 	PVRSRV_DATA *psPVRSRVData = pvData;
 	IMG_BOOL     bRetryWorkList = IMG_FALSE;
-	IMG_HANDLE	 hGlobalEvent;
 	IMG_HANDLE	 hOSEvent;
 	PVRSRV_ERROR eRc;
-	IMG_BOOL bUseGlobalEO = IMG_FALSE;
 
 	/* Store the process id (pid) of the clean-up thread */
 	psPVRSRVData->cleanupThreadPid = OSGetCurrentProcessID();
@@ -316,33 +312,18 @@ static void CleanupThread(void *pvData)
 	eRc = OSEventObjectOpen(psPVRSRVData->hCleanupEventObject, &hOSEvent);
 	PVR_ASSERT(eRc == PVRSRV_OK);
 
-	eRc = OSEventObjectOpen(psPVRSRVData->hGlobalEventObject, &hGlobalEvent);
-	PVR_ASSERT(eRc == PVRSRV_OK);
-
 	/* While the driver is in a good state and is not being unloaded
 	 * try to free any deferred items when signalled
 	 */
 	while ((psPVRSRVData->eServicesState == PVRSRV_SERVICES_STATE_OK) && 
 			(!psPVRSRVData->bUnload))
 	{
-		IMG_HANDLE hEvent;
-
 		/* Wait until signalled for deferred clean up OR wait for a
 		 * short period if the previous deferred clean up was not able
 		 * to release all the resources before trying again.
 		 * Bridge lock re-acquired on our behalf before the wait call returns.
 		 */
-
-		if(bRetryWorkList && bUseGlobalEO)
-		{
-			hEvent = hGlobalEvent;
-		}
-		else
-		{
-			hEvent = hOSEvent;
-		}
-
-		eRc = OSEventObjectWaitTimeout(hEvent,
+		eRc = OSEventObjectWaitTimeout(hOSEvent,
 				bRetryWorkList ?
 				CLEANUP_THREAD_WAIT_RETRY_TIMEOUT :
 				CLEANUP_THREAD_WAIT_SLEEP_TIMEOUT);
@@ -359,15 +340,12 @@ static void CleanupThread(void *pvData)
 			PVR_DPF((PVR_DBG_ERROR, "CleanupThread: wait error %d", eRc));
 		}
 
-		bRetryWorkList = _CleanupThreadProcessWorkList(psPVRSRVData, &bUseGlobalEO);
+		bRetryWorkList = _CleanupThreadProcessWorkList(psPVRSRVData);
 	}
 
 	OSLockDestroy(psPVRSRVData->hCleanupThreadWorkListLock);
 
 	eRc = OSEventObjectClose(hOSEvent);
-	PVR_LOG_IF_ERROR(eRc, "OSEventObjectClose");
-
-	eRc = OSEventObjectClose(hGlobalEvent);
 	PVR_LOG_IF_ERROR(eRc, "OSEventObjectClose");
 
 	PVR_DPF((CLEANUP_DPFL, "CleanupThread: thread ending... "));
@@ -1273,6 +1251,13 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVDeviceCreate(void *pvOSDevice,
 		psDeviceNode->pfnCreateRamBackedPMR[PVRSRV_DEVICE_PHYS_HEAP_FW_LOCAL] = PhysmemNewOSRamBackedPMR;
 	}
 
+	/*
+	 * FIXME: We might want PT memory to come from a different heap so it would
+	 * make sense to specify the HeapID for it, but need to think if/how this
+	 * would affect how we do the CPU <> Dev physical address translation.
+	 */
+	psDeviceNode->pszMMUPxPDumpMemSpaceName =
+		PhysHeapPDumpMemspaceName(psDeviceNode->apsPhysHeap[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL]);
 	psDeviceNode->uiMMUPxLog2AllocGran = OSGetPageShift();
 
 	eError = ServerSyncInit(psDeviceNode);

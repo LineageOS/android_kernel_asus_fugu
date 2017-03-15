@@ -223,7 +223,6 @@ static PVRSRV_ERROR _Destroy2DTransferContext(RGX_SERVER_TQ_2D_DATA *ps2DData,
 		PVR_LOG(("%s: Unexpected error from RGXFWRequestCommonContextCleanUp (%s)",
 				 __FUNCTION__,
 				 PVRSRVGetErrorStringKM(eError)));
-		return eError;
 	}
 
 	/* ... it has so we can free it's resources */
@@ -254,7 +253,6 @@ static PVRSRV_ERROR _Destroy3DTransferContext(RGX_SERVER_TQ_3D_DATA *ps3DData,
 		PVR_LOG(("%s: Unexpected error from RGXFWRequestCommonContextCleanUp (%s)",
 				 __FUNCTION__,
 				 PVRSRVGetErrorStringKM(eError)));
-		return eError;
 	}
 
 	/* ... it has so we can free it's resources */
@@ -797,7 +795,6 @@ PVRSRV_ERROR PVRSRVRGXSubmitTransferKM(RGX_SERVER_TQ_CONTEXT	*psTransferContext,
 		                                paui32IntUpdateValue,
 		                                paui32ServerSyncCount[i],
 		                                papaui32ServerSyncFlags[i],
-		                                SYNC_FLAG_MASK_ALL,
 		                                papapsServerSyncs[i],
 		                                paui32FWCommandSize[i],
 		                                papaui8FWCommand[i],
@@ -1135,15 +1132,16 @@ void CheckForStalledTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo,
 	OSWRLockReleaseRead(psDevInfo->hTransferCtxListLock);
 }
 
-IMG_UINT32 CheckForStalledClientTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
+IMG_BOOL CheckForStalledClientTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
 {
 	DLLIST_NODE *psNode, *psNext;
-	IMG_UINT32 ui32ContextBitMask = 0;
+	IMG_BOOL bStalled = IMG_FALSE;
 
 	OSWRLockAcquireRead(psDevInfo->hTransferCtxListLock);
 
 	dllist_foreach_node(&psDevInfo->sTransferCtxtListHead, psNode, psNext)
 	{
+		IMG_BOOL bTQ2DStalled = IMG_FALSE, bTQ3DStalled = IMG_FALSE;
 		RGX_SERVER_TQ_CONTEXT *psCurrentServerTransferCtx =
 			IMG_CONTAINER_OF(psNode, RGX_SERVER_TQ_CONTEXT, sListNode);
 
@@ -1151,23 +1149,23 @@ IMG_UINT32 CheckForStalledClientTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
 				(NULL != psCurrentServerTransferCtx->s2DData.psServerCommonContext) && \
 				(psDevInfo->sDevFeatureCfg.ui64Features & RGX_FEATURE_TLA_BIT_MASK))
 		{
-			if (CheckStalledClientCommonContext(psCurrentServerTransferCtx->s2DData.psServerCommonContext, RGX_KICK_TYPE_DM_TQ2D) == PVRSRV_ERROR_CCCB_STALLED)
-			{
-				ui32ContextBitMask |= RGX_KICK_TYPE_DM_TQ2D;
-			}
+			bTQ2DStalled = CheckStalledClientCommonContext(psCurrentServerTransferCtx->s2DData.psServerCommonContext) == PVRSRV_ERROR_CCCB_STALLED;
 		}
 
 		if ((psCurrentServerTransferCtx->ui32Flags & RGX_SERVER_TQ_CONTEXT_FLAGS_3D) && (NULL != psCurrentServerTransferCtx->s3DData.psServerCommonContext))
 		{
-			if ((CheckStalledClientCommonContext(psCurrentServerTransferCtx->s3DData.psServerCommonContext, RGX_KICK_TYPE_DM_TQ3D) == PVRSRV_ERROR_CCCB_STALLED))
-			{
-				ui32ContextBitMask |= RGX_KICK_TYPE_DM_TQ3D;
-			}
+			bTQ3DStalled = (CheckStalledClientCommonContext(psCurrentServerTransferCtx->s3DData.psServerCommonContext) == PVRSRV_ERROR_CCCB_STALLED);
+		}
+
+		if (bTQ2DStalled || bTQ3DStalled)
+		{
+			bStalled = IMG_TRUE;
+			break;
 		}
 	}
 
 	OSWRLockReleaseRead(psDevInfo->hTransferCtxListLock);
-	return ui32ContextBitMask;
+	return bStalled;
 }
 
 /**************************************************************************//**

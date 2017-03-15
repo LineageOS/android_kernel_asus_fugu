@@ -42,8 +42,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef _RGXCONFIG_KM_22_V_21_16_H_
 #define _RGXCONFIG_KM_22_V_21_16_H_
 
-/***** Automatically generated file (08/02/2017 07:00:50): Do not edit manually ********************/
-/***** Timestamp:  (08/02/2017 07:00:50)************************************************************/
+/***** Automatically generated file (14/11/2016 07:00:35): Do not edit manually ********************/
+/***** Timestamp:  (14/11/2016 07:00:35)************************************************************/
 
 #define RGX_BNC_KM_B 22
 #define RGX_BNC_KM_N 21
@@ -60,7 +60,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RGX_FEATURE_VIRTUAL_ADDRESS_SPACE_BITS (40)
 #define RGX_FEATURE_SLC_BANKS (1)
 #define RGX_FEATURE_GS_RTA_SUPPORT 
-#define RGX_FEATURE_NUM_ISP_IPP_PIPES (2)
+#define RGX_FEATURE_NUM_ISP_IPP_PIPES (1)
 #define RGX_FEATURE_GPU_VIRTUALISATION 
 #define RGX_FEATURE_COMPUTE 
 #define RGX_FEATURE_SINGLE_BIF 

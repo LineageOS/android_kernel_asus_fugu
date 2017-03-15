@@ -99,20 +99,6 @@ typedef enum _RGXFWIF_DM_
 	RGXFWIF_DM_FORCE_I32  = 0x7fffffff   /*!< Force enum to be at least 32-bits wide */
 } RGXFWIF_DM;
 
-typedef enum _RGX_KICK_TYPE_DM_
-{
-	RGX_KICK_TYPE_DM_GP			= 1 << 0,
-	RGX_KICK_TYPE_DM_TDM_2D		= 1 << 1,
-	RGX_KICK_TYPE_DM_TA			= 1 << 2,
-	RGX_KICK_TYPE_DM_3D			= 1 << 3,
-	RGX_KICK_TYPE_DM_CDM		= 1 << 4,
-	RGX_KICK_TYPE_DM_RTU		= 1 << 5,
-	RGX_KICK_TYPE_DM_SHG		= 1 << 6,
-	RGX_KICK_TYPE_DM_TQ2D		= 1 << 7,
-	RGX_KICK_TYPE_DM_TQ3D		= 1 << 8,
-	RGX_KICK_TYPE_DM_LAST		= 1 << 9
-} RGX_KICK_TYPE_DM;
-
 /* Maximum number of DM in use: GP, 2D/TDM, TA, 3D, CDM, SHG, RTU */
 #define RGXFWIF_DM_DEFAULT_MAX	(7)
 

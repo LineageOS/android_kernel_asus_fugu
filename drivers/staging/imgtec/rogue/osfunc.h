@@ -132,22 +132,6 @@ PVRSRV_ERROR OSClockMonotonicns64(IMG_UINT64 *pui64Time);
 PVRSRV_ERROR OSClockMonotonicus64(IMG_UINT64 *pui64Time);
 
 /*************************************************************************/ /*!
-@Function       OSClockMonotonicRawns64
-@Description    This function returns a clock value based on the system
-                monotonic raw clock.
-@Return         64bit ns timestamp
-*/ /**************************************************************************/
-IMG_UINT64 OSClockMonotonicRawns64(void);
-
-/*************************************************************************/ /*!
-@Function       OSClockMonotonicRawns64
-@Description    This function returns a clock value based on the system
-                monotonic raw clock.
-@Return         64bit us timestamp
-*/ /**************************************************************************/
-IMG_UINT64 OSClockMonotonicRawus64(void);
-
-/*************************************************************************/ /*!
 @Function       OSGetPageSize
 @Description    This function returns the page size.
                 If the OS is not using memory mappings it should return a
@@ -1303,13 +1287,15 @@ PVRSRV_ERROR OSBridgeCopyToUser (void *pvProcess,
 @Description    Returns the addresses and sizes of the buffers used to pass
                 data into and out of bridge function calls.
 @Output         ppvBridgeInBuffer         pointer to the input bridge data buffer
-                                          of size PVRSRV_MAX_BRIDGE_IN_SIZE.
+@Output         pui32BridgeInBufferSize   size of the input bridge data buffer
 @Output         ppvBridgeOutBuffer        pointer to the output bridge data buffer
-                                          of size PVRSRV_MAX_BRIDGE_OUT_SIZE.
+@Output         pui32BridgeOutBufferSize  size of the output bridge data buffer
 @Return         PVRSRV_OK on success, a failure code otherwise.
 */ /**************************************************************************/
 PVRSRV_ERROR OSGetGlobalBridgeBuffers (void **ppvBridgeInBuffer,
-									   void **ppvBridgeOutBuffer);
+							IMG_UINT32 *pui32BridgeInBufferSize,
+							void **ppvBridgeOutBuffer,
+							IMG_UINT32 *pui32BridgeOutBufferSize);
 
 /*************************************************************************/ /*!
 @Function       OSSetDriverSuspended
@@ -1607,35 +1593,6 @@ void *OSCreateStatisticEntry(IMG_CHAR* pszName, void *pvFolder,
 */ /**************************************************************************/
 void OSRemoveStatisticEntry(void *pvEntry);
 
-#if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
-/*************************************************************************/ /*!
-@Function       OSCreateRawStatisticEntry
-@Description    Create a raw statistic entry in the specified folder.
-                Where operating systems do not support a debugfs
-                file system this function may be implemented as a stub.
-@Input          pszFileName    String containing the name for the entry.
-@Input          pvParentDir    Reference from OSCreateStatisticFolder() of the
-                               folder to create the entry in, or NULL for the
-                               root.
-@Input          pfnStatsPrint  Pointer to function that can be used to print the
-                               values of all the statistics.
-@Return	        Pointer void reference to the entry created, which can be
-                passed to OSRemoveRawStatisticEntry() to remove the entry.
-*/ /**************************************************************************/
-void *OSCreateRawStatisticEntry(const IMG_CHAR *pszFileName, void *pvParentDir,
-                                OS_STATS_PRINT_FUNC *pfStatsPrint);
-
-/*************************************************************************/ /*!
-@Function       OSRemoveRawStatisticEntry
-@Description    Removes a raw statistic entry.
-                Where operating systems do not support a debugfs
-                file system this function may be implemented as a stub.
-@Input          pvEntry  Pointer void reference to the entry created by
-                         OSCreateRawStatisticEntry().
-*/ /**************************************************************************/
-void OSRemoveRawStatisticEntry(void *pvEntry);
-#endif
-
 /*************************************************************************/ /*!
 @Function       OSCreateStatisticFolder
 @Description    Create a statistic folder to hold statistic entries.
@@ -1677,14 +1634,9 @@ void OSUserModeAccessToPerfCountersEn(void);
 
 /*************************************************************************/ /*!
 @Function       OSDebugSignalPID
-@Description    Sends a SIGTRAP signal to a specific PID in user mode for
-                debugging purposes. The user mode process can register a handler
-                against this signal.
-                This is necessary to support the Rogue debugger. If the Rogue
-                debugger is not used then this function may be implemented as
-                a stub.
+@Description    Sends a debug signal to a specific PID.
 @Input          ui32PID    The PID for the signal.
-@Return         PVRSRV_OK on success, a failure code otherwise.
+@Returns        PVRSRV_ERROR
 */ /**************************************************************************/
 PVRSRV_ERROR OSDebugSignalPID(IMG_UINT32 ui32PID);
 

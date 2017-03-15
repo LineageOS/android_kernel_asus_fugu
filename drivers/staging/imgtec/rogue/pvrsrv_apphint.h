@@ -50,7 +50,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PVRSRVAppHintRegisterHandlersUINT64(i,q,s,d,p) pvr_apphint_register_handlers_uint64(i,q,s,d,p)
 #define PVRSRVAppHintRegisterHandlersUINT32(i,q,s,d,p) pvr_apphint_register_handlers_uint32(i,q,s,d,p)
 #define PVRSRVAppHintRegisterHandlersBOOL(i,q,s,d,p) pvr_apphint_register_handlers_bool(i,q,s,d,p)
-#define PVRSRVAppHintRegisterHandlersSTRING(i,q,s,d,p) pvr_apphint_register_handlers_string(i,q,s,d,p)
 
 #else
 
@@ -58,7 +57,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PVRSRVAppHintRegisterHandlersUINT64(i,q,s,d,p)
 #define PVRSRVAppHintRegisterHandlersUINT32(i,q,s,d,p)
 #define PVRSRVAppHintRegisterHandlersBOOL(i,q,s,d,p)
-#define PVRSRVAppHintRegisterHandlersSTRING(i,q,s,d,p)
 
 #endif
 

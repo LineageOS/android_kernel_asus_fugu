@@ -168,12 +168,6 @@ void  ProcessStatsPrintElements(void *pvFile,
 								void *pvStatPtr,
 								OS_STATS_PRINTF_FUNC* pfnOSGetStatsPrintf);
 
-#if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
-void RawProcessStatsPrintElements(void *pvFile,
-                                  void *pvStatPtr,
-                                  OS_STATS_PRINTF_FUNC* pfnOSGetStatsPrintf);
-#endif
-
 void  MemStatsPrintElements(void *pvFile,
 							void *pvStatPtr,
 							OS_STATS_PRINTF_FUNC* pfnOSGetStatsPrintf);
@@ -365,9 +359,6 @@ static IMG_CHAR *pszOSLivePidFolderName = "pid";
 static IMG_CHAR *pszOSDeadPidFolderName = "pids_retired";
 static void *pvOSLivePidFolder = NULL;
 static void *pvOSDeadPidFolder = NULL;
-#if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
-static void *pvOSProcStats = NULL;
-#endif
 
 /* global driver-data folders */
 typedef struct _GLOBAL_STATS_
@@ -1043,10 +1034,6 @@ PVRSRVStatsInitialise(void)
 		/* Create a pid folders for putting the PID files in... */
 		pvOSLivePidFolder = OSCreateStatisticFolder(pszOSLivePidFolderName, NULL);
 		pvOSDeadPidFolder = OSCreateStatisticFolder(pszOSDeadPidFolderName, NULL);
-#if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
-		pvOSProcStats = OSCreateRawStatisticEntry("memtrack_stats", NULL,
-		                                          RawProcessStatsPrintElements);
-#endif
 
 		/* Create power stats entry... */
 		pvOSPowerStatsEntryData = OSCreateStatisticEntry("power_timing_stats",
@@ -1093,14 +1080,6 @@ PVRSRVStatsDestroy(void)
 
 	/* Stop monitoring memory allocations... */
 	bProcessStatsInitialised = IMG_FALSE;
-
-#if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
-	if (pvOSProcStats)
-	{
-		OSRemoveRawStatisticEntry(pvOSProcStats);
-		pvOSProcStats = NULL;
-	}
-#endif
 
 	/* Destroy the power stats entry... */
 	if (pvOSPowerStatsEntryData!=NULL)
@@ -2382,49 +2361,6 @@ _DecreaseProcStatValue(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 
 }
 
-#if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
-void RawProcessStatsPrintElements(void *pvFile,
-                                  void *pvStatPtr,
-                                  OS_STATS_PRINTF_FUNC *pfnOSStatsPrintf)
-{
-	PVRSRV_PROCESS_STATS *psProcessStats;
-
-	if (pfnOSStatsPrintf == NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: pfnOSStatsPrintf not set", __func__));
-		return;
-	}
-
-	pfnOSStatsPrintf(pvFile, "%s,%s,%s,%s,%s,%s\n",
-	                 "PID",
-	                 "MemoryUsageKMalloc",           // PVRSRV_PROCESS_STAT_TYPE_KMALLOC
-	                 "MemoryUsageAllocPTMemoryUMA",  // PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA
-	                 "MemoryUsageAllocPTMemoryLMA",  // PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_LMA
-	                 "MemoryUsageAllocGPUMemUMA",    // PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES
-	                 "MemoryUsageAllocGPUMemLMA"     // PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES
-	                 );
-
-	OSLockAcquire(g_psLinkedListLock);
-
-	psProcessStats = g_psLiveList;
-
-	while (psProcessStats != NULL)
-	{
-		pfnOSStatsPrintf(pvFile, "%d,%d,%d,%d,%d,%d\n",
-		                 psProcessStats->pid,
-		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_KMALLOC],
-		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA],
-		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_LMA],
-		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES],
-		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES]
-		                 );
-
-		psProcessStats = psProcessStats->psNext;
-	}
-
-	OSLockRelease(g_psLinkedListLock);
-} /* RawProcessStatsPrintElements */
-#endif
 
 void
 PVRSRVStatsDecrMemKAllocStat(size_t uiBytes,

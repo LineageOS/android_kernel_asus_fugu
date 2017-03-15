@@ -60,7 +60,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "rgxhwperf.h"
 #include "rgxapi_km.h"
 #include "rgxfwutils.h"
-#include "rgxtimecorr.h"
 #include "devicemem.h"
 #include "devicemem_pdump.h"
 #include "pdump_km.h"
@@ -1349,7 +1348,7 @@ static inline void _SetupHostPacketHeader(IMG_UINT8 *pui8Dest,
 	PVR_ASSERT(ui32Size<=RGX_HWPERF_MAX_PACKET_SIZE);
 
 	psHeader->ui32Ordinal = gpsRgxDevInfo->ui32HWPerfHostNextOrdinal;
-	psHeader->ui64Timestamp = RGXGPUFreqCalibrateClockus64();
+	psHeader->ui64Timestamp = OSClockus64();
 	psHeader->ui32Sig = HWPERF_PACKET_V2B_SIG;
 	psHeader->eTypeId = RGX_HWPERF_MAKE_TYPEID(RGX_HWPERF_STREAM_ID1_HOST,
 	        eEvType, 0, 0);
@@ -1422,10 +1421,9 @@ static inline void _SetupHostEnqPacketData(IMG_UINT8 *pui8Dest,
 	        (pui8Dest + sizeof(RGX_HWPERF_V2_PACKET_HDR));
 	psData->ui32EnqType = eEnqType;
 	psData->ui32PID = ui32Pid;
+	psData->ui32DMContext = ui32FWDMContext;
 	psData->ui32ExtJobRef = ui32ExtJobRef;
 	psData->ui32IntJobRef = ui32IntJobRef;
-	psData->ui32DMContext = ui32FWDMContext;
-	psData->ui32Padding = 0;       /* Set to zero for future compatibility */
 }
 
 void RGXHWPerfHostPostEnqEvent(RGX_HWPERF_KICK_TYPE eEnqType,
@@ -1755,10 +1753,6 @@ typedef struct RGX_HWPERF_FTRACE_DATA {
 	 * enabled we enabled the firmware event. When all FTrace UFO events are disabled
 	 * we disable firmware event. */
 	IMG_UINT    uiUfoEventRef;
-	/* Saved value of the clock source before the trace was enabled. We're keeping
-	 * it here so that know we which clock should be selected after we disable the
-	 * gpu ftrace. */
-	IMG_UINT64  ui64LastTimeCorrClock;
 } RGX_HWPERF_FTRACE_DATA;
 
 /* Caller must now hold hFTraceLock before calling this method.
@@ -1812,10 +1806,6 @@ static PVRSRV_ERROR RGXHWPerfFTraceGPUEnable(void)
 								PVRSRV_STREAM_FLAG_ACQUIRE_NONBLOCKING,
 								&psFtraceData->hGPUTraceTLStream);
 	PVR_LOGG_IF_ERROR(eError, "TLClientOpenStream", err_out);
-
-	/* Set clock source for timer correlation data to sched_clock */
-	psFtraceData->ui64LastTimeCorrClock = RGXGPUFreqCalibrateGetClockSource();
-	RGXGPUFreqCalibrateSetClockSource(gpsRgxDevNode, RGXTIMECORR_CLOCK_SCHED);
 
 	/* Reset the OS timestamp coming from the timer correlation data
 	 * associated with the latest HWPerf event we processed.
@@ -1905,12 +1895,6 @@ static PVRSRV_ERROR RGXHWPerfFTraceGPUDisable(IMG_BOOL bDeInit)
 		psFtraceData->hGPUTraceTLStream = NULL;
 	}
 
-	if (psFtraceData->ui64LastTimeCorrClock != RGXTIMECORR_CLOCK_SCHED)
-	{
-		RGXGPUFreqCalibrateSetClockSource(gpsRgxDevNode,
-		                                  psFtraceData->ui64LastTimeCorrClock);
-	}
-
 	PVR_DPF_RETURN_RC(eError);
 }
 
@@ -1981,7 +1965,7 @@ CalculateEventTimestamp(PVRSRV_RGXDEV_INFO *psDevInfo,
 	uint32_t ui32CRDeltaToOSDeltaKNs = psTimeCorr->ui32CRDeltaToOSDeltaKNs;
 	uint64_t ui64EventOSTimestamp, deltaRgxTimer, delta_ns;
 
-	if (psFtraceData->ui64LastSampledTimeCorrOSTimeStamp > ui64OSTimeStamp)
+	if(psFtraceData->ui64LastSampledTimeCorrOSTimeStamp > ui64OSTimeStamp)
 	{
 		/* The previous packet had a time reference (time correlation data) more
 		 * recent than the one in the current packet, it means the timer

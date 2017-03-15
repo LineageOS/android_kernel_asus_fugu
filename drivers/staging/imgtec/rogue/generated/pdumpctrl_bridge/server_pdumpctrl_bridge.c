@@ -97,7 +97,6 @@ PVRSRVBridgePVRSRVPDumpIsCapturing(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
 	return 0;
 }
 
@@ -120,7 +119,6 @@ PVRSRVBridgePVRSRVPDumpGetFrame(IMG_UINT32 ui32DispatchTableEntry,
 	psPVRSRVPDumpGetFrameOUT->eError =
 		PDumpGetFrameKM(psConnection, OSGetDevData(psConnection),
 					&psPVRSRVPDumpGetFrameOUT->ui32Frame);
-
 
 
 
@@ -161,7 +159,6 @@ PVRSRVBridgePVRSRVPDumpSetDefaultCaptureParams(IMG_UINT32 ui32DispatchTableEntry
 
 
 
-
 	return 0;
 }
 
@@ -185,7 +182,6 @@ PVRSRVBridgePVRSRVPDumpIsLastCaptureFrame(IMG_UINT32 ui32DispatchTableEntry,
 	psPVRSRVPDumpIsLastCaptureFrameOUT->eError =
 		PDumpIsLastCaptureFrameKM(
 					&psPVRSRVPDumpIsLastCaptureFrameOUT->bpbIsLastCaptureFrame);
-
 
 
 

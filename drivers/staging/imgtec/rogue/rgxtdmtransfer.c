@@ -154,7 +154,6 @@ static PVRSRV_ERROR _DestroyTDMTransferContext(
 		PVR_LOG(("%s: Unexpected error from RGXFWRequestCommonContextCleanUp (%s)",
 				 __FUNCTION__,
 				 PVRSRVGetErrorStringKM(eError)));
-		return eError;
 	}
 
 	/* ... it has so we can free it's resources */
@@ -520,7 +519,6 @@ PVRSRV_ERROR PVRSRVRGXTDMSubmitTransferKM(
 		                                paui32IntUpdateValue,
 		                                ui32ServerSyncCount,
 		                                paui32ServerSyncFlags,
-		                                SYNC_FLAG_MASK_ALL,
 		                                papsServerSyncs,
 		                                ui32FWCommandSize,
 		                                pui8FWCommand,
@@ -763,6 +761,7 @@ PVRSRV_ERROR PVRSRVRGXTDMSetTransferContextPriorityKM(CONNECTION_DATA *psConnect
 	return PVRSRV_OK;
 }
 
+
 void CheckForStalledTDMTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo,
 					DUMPDEBUG_PRINTF_FUNC *pfnDumpDebugPrintf,
 					void *pvDumpDebugFile)
@@ -784,10 +783,10 @@ void CheckForStalledTDMTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo,
 }
 
 
-IMG_UINT32 CheckForStalledClientTDMTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
+IMG_BOOL CheckForStalledClientTDMTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
 {
 	DLLIST_NODE *psNode, *psNext;
-	IMG_UINT32 ui32ContextBitMask = 0;
+	IMG_BOOL bStalled = IMG_FALSE;
 
 	OSWRLockAcquireRead(psDevInfo->hTDMCtxListLock);
 
@@ -796,15 +795,14 @@ IMG_UINT32 CheckForStalledClientTDMTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
 		RGX_SERVER_TQ_TDM_CONTEXT *psCurrentServerTransferCtx =
 			IMG_CONTAINER_OF(psNode, RGX_SERVER_TQ_TDM_CONTEXT, sListNode);
 
-		if (CheckStalledClientCommonContext(
-			             psCurrentServerTransferCtx->sTDMData.psServerCommonContext, RGX_KICK_TYPE_DM_TDM_2D)
-			         == PVRSRV_ERROR_CCCB_STALLED) {
-			ui32ContextBitMask = RGX_KICK_TYPE_DM_TDM_2D;
-		}
+		bStalled |= (CheckStalledClientCommonContext(
+			             psCurrentServerTransferCtx->sTDMData.psServerCommonContext)
+		             == PVRSRV_ERROR_CCCB_STALLED);
+
 	}
 
 	OSWRLockReleaseRead(psDevInfo->hTDMCtxListLock);
-	return ui32ContextBitMask;
+	return bStalled;
 }
 
 

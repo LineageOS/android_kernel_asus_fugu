@@ -388,7 +388,6 @@ PVRSRV_ERROR _DestroySHContext(RGX_SERVER_RAY_SH_DATA *psSHData,
 		PVR_LOG(("%s: Unexpected error from RGXFWRequestCommonContextCleanUp (%s)",
 				__FUNCTION__,
 				PVRSRVGetErrorStringKM(eError)));
-		return eError;
 	}
 
 	/* ... it has so we can free its resources */
@@ -421,7 +420,6 @@ PVRSRV_ERROR _DestroyRSContext(RGX_SERVER_RAY_RS_DATA *psRSData,
 		PVR_LOG(("%s: Unexpected error from RGXFWRequestCommonContextCleanUp (%s)",
 				 __FUNCTION__,
 				 PVRSRVGetErrorStringKM(eError)));
-		return eError;
 	}
 
 	/* ... it has so we can free its resources */
@@ -2463,7 +2461,6 @@ PVRSRV_ERROR PVRSRVRGXKickRSKM(RGX_SERVER_RAY_CONTEXT		*psRayContext,
 	                                paui32ClientUpdateValue,
 	                                ui32ServerSyncPrims,
 	                                paui32ServerSyncFlags,
-	                                SYNC_FLAG_MASK_ALL,
 	                                pasServerSyncs,
 	                                ui32CmdSize,
 	                                pui8DMCmd,
@@ -2489,7 +2486,6 @@ PVRSRV_ERROR PVRSRVRGXKickRSKM(RGX_SERVER_RAY_CONTEXT		*psRayContext,
 	                                paui32ClientUpdateValue,
 	                                ui32ServerSyncPrims,
 	                                paui32ServerSyncFlags,
-	                                SYNC_FLAG_MASK_ALL,
 	                                pasServerSyncs,
 	                                ui32CmdSize,
 	                                pui8DMCmd,
@@ -2543,7 +2539,6 @@ PVRSRV_ERROR PVRSRVRGXKickRSKM(RGX_SERVER_RAY_CONTEXT		*psRayContext,
                                      NULL,
 	                                 ui32ServerSyncPrims,
 	                                 paui32ServerSyncFlags,
-	                                 SYNC_FLAG_MASK_ALL,
 	                                 pasServerSyncs,
 	                                 ui32FCCmdSize,
 	                                 pui8FCDMCmd,
@@ -2744,7 +2739,6 @@ PVRSRV_ERROR PVRSRVRGXKickVRDMKM(RGX_SERVER_RAY_CONTEXT		*psRayContext,
 	                                paui32ClientUpdateValue,
 	                                ui32ServerSyncPrims,
 	                                paui32ServerSyncFlags,
-	                                SYNC_FLAG_MASK_ALL,
 	                                pasServerSyncs,
 	                                ui32CmdSize,
 	                                pui8DMCmd,
@@ -2920,36 +2914,37 @@ void CheckForStalledRayCtxt(PVRSRV_RGXDEV_INFO *psDevInfo,
 	OSWRLockReleaseRead(psDevInfo->hRaytraceCtxListLock);
 }
 
-IMG_UINT32 CheckForStalledClientRayCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
+IMG_BOOL CheckForStalledClientRayCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
 {
 	DLLIST_NODE *psNode, *psNext;
-	IMG_UINT32 ui32ContextBitMask = 0;
+	IMG_BOOL bStalled = IMG_FALSE;
 
 	OSWRLockAcquireRead(psDevInfo->hRaytraceCtxListLock);
 
 	dllist_foreach_node(&psDevInfo->sRaytraceCtxtListHead, psNode, psNext)
 	{
+		IMG_BOOL bSHStalled = IMG_FALSE, bRSStalled = IMG_FALSE;
 		RGX_SERVER_RAY_CONTEXT *psCurrentServerRayCtx =
 			IMG_CONTAINER_OF(psNode, RGX_SERVER_RAY_CONTEXT, sListNode);
 		if(NULL != psCurrentServerRayCtx->sSHData.psServerCommonContext)
 		{
-			if (CheckStalledClientCommonContext(psCurrentServerRayCtx->sSHData.psServerCommonContext, RGX_KICK_TYPE_DM_RTU) == PVRSRV_ERROR_CCCB_STALLED)
-			{
-				ui32ContextBitMask |= RGX_KICK_TYPE_DM_RTU;
-			}
+			bSHStalled = CheckStalledClientCommonContext(psCurrentServerRayCtx->sSHData.psServerCommonContext) == PVRSRV_ERROR_CCCB_STALLED;
 		}
 
 		if(NULL != psCurrentServerRayCtx->sRSData.psServerCommonContext)
 		{
-			if (CheckStalledClientCommonContext(psCurrentServerRayCtx->sRSData.psServerCommonContext, RGX_KICK_TYPE_DM_SHG) == PVRSRV_ERROR_CCCB_STALLED)
-			{
-				ui32ContextBitMask |= RGX_KICK_TYPE_DM_SHG;
-			}
+			bRSStalled = CheckStalledClientCommonContext(psCurrentServerRayCtx->sRSData.psServerCommonContext) == PVRSRV_ERROR_CCCB_STALLED;
+		}
+
+		if (bSHStalled || bRSStalled)
+		{
+			bStalled = IMG_TRUE;
+			break;
 		}
 	}
 
 	OSWRLockReleaseRead(psDevInfo->hRaytraceCtxListLock);
-	return ui32ContextBitMask;
+	return bStalled;
 }
 
 /******************************************************************************

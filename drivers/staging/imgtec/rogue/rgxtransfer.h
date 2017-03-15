@@ -150,6 +150,6 @@ void CheckForStalledTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo,
 					void *pvDumpDebugFile);
 
 /* Debug/Watchdog - check if client transfer contexts are stalled */
-IMG_UINT32 CheckForStalledClientTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo);
+IMG_BOOL CheckForStalledClientTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo);
 
 #endif /* __RGXTRANSFER_H__ */

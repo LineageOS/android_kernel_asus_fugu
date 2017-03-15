@@ -99,14 +99,12 @@ PVRSRVBridgePhysmemImportDmaBuf(IMG_UINT32 ui32DispatchTableEntry,
 		goto PhysmemImportDmaBuf_exit;
 	}
 
-	/* Lock over handle creation. */
-	LockHandle();
 
 
 
 
 
-	psPhysmemImportDmaBufOUT->eError = PVRSRVAllocHandleUnlocked(psConnection->psHandleBase,
+	psPhysmemImportDmaBufOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
 
 							&psPhysmemImportDmaBufOUT->hPMRPtr,
 							(void *) psPMRPtrInt,
@@ -115,17 +113,13 @@ PVRSRVBridgePhysmemImportDmaBuf(IMG_UINT32 ui32DispatchTableEntry,
 							,(PFN_HANDLE_RELEASE)&PMRUnrefPMR);
 	if (psPhysmemImportDmaBufOUT->eError != PVRSRV_OK)
 	{
-		UnlockHandle();
 		goto PhysmemImportDmaBuf_exit;
 	}
 
-	/* Release now we have created handles. */
-	UnlockHandle();
 
 
 
 PhysmemImportDmaBuf_exit:
-
 
 
 	if (psPhysmemImportDmaBufOUT->eError != PVRSRV_OK)
@@ -156,8 +150,6 @@ PVRSRVBridgePhysmemExportDmaBuf(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-	/* Lock over handle lookup. */
-	LockHandle();
 
 
 
@@ -166,19 +158,16 @@ PVRSRVBridgePhysmemExportDmaBuf(IMG_UINT32 ui32DispatchTableEntry,
 				{
 					/* Look up the address from the handle */
 					psPhysmemExportDmaBufOUT->eError =
-						PVRSRVLookupHandleUnlocked(psConnection->psHandleBase,
+						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psPMRInt,
 											hPMR,
 											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR,
 											IMG_TRUE);
 					if(psPhysmemExportDmaBufOUT->eError != PVRSRV_OK)
 					{
-						UnlockHandle();
 						goto PhysmemExportDmaBuf_exit;
 					}
 				}
-	/* Release now we have looked up handles. */
-	UnlockHandle();
 
 	psPhysmemExportDmaBufOUT->eError =
 		PhysmemExportDmaBuf(psConnection, OSGetDevData(psConnection),
@@ -190,9 +179,6 @@ PVRSRVBridgePhysmemExportDmaBuf(IMG_UINT32 ui32DispatchTableEntry,
 
 PhysmemExportDmaBuf_exit:
 
-	/* Lock over handle lookup cleanup. */
-	LockHandle();
-
 
 
 
@@ -202,13 +188,11 @@ PhysmemExportDmaBuf_exit:
 					/* Unreference the previously looked up handle */
 						if(psPMRInt)
 						{
-							PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+							PVRSRVReleaseHandle(psConnection->psHandleBase,
 											hPMR,
 											PVRSRV_HANDLE_TYPE_PHYSMEM_PMR);
 						}
 				}
-	/* Release now we have cleaned up look up handles. */
-	UnlockHandle();
 
 
 	return 0;
@@ -226,9 +210,6 @@ PVRSRVBridgePhysmemImportSparseDmaBuf(IMG_UINT32 ui32DispatchTableEntry,
 
 	IMG_UINT32 ui32NextOffset = 0;
 	IMG_BYTE   *pArrayArgsBuffer = NULL;
-#if !defined(INTEGRITY_OS)
-	IMG_BOOL bHaveEnoughSpace = IMG_FALSE;
-#endif
 
 	IMG_UINT32 ui32BufferSize = 
 			(psPhysmemImportSparseDmaBufIN->ui32NumPhysChunks * sizeof(IMG_UINT32)) +
@@ -240,28 +221,12 @@ PVRSRVBridgePhysmemImportSparseDmaBuf(IMG_UINT32 ui32DispatchTableEntry,
 
 	if (ui32BufferSize != 0)
 	{
-#if !defined(INTEGRITY_OS)
-		/* Try to use remainder of input buffer for copies if possible, word-aligned for safety. */
-		IMG_UINT32 ui32InBufferOffset = PVR_ALIGN(sizeof(*psPhysmemImportSparseDmaBufIN), sizeof(unsigned long));
-		IMG_UINT32 ui32InBufferExcessSize = ui32InBufferOffset >= PVRSRV_MAX_BRIDGE_IN_SIZE ? 0 :
-			PVRSRV_MAX_BRIDGE_IN_SIZE - ui32InBufferOffset;
+		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
 
-		bHaveEnoughSpace = ui32BufferSize <= ui32InBufferExcessSize;
-		if (bHaveEnoughSpace)
+		if(!pArrayArgsBuffer)
 		{
-			IMG_BYTE *pInputBuffer = (IMG_BYTE *)psPhysmemImportSparseDmaBufIN;
-
-			pArrayArgsBuffer = &pInputBuffer[ui32InBufferOffset];		}
-		else
-#endif
-		{
-			pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-			if(!pArrayArgsBuffer)
-			{
-				psPhysmemImportSparseDmaBufOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-				goto PhysmemImportSparseDmaBuf_exit;
-			}
+			psPhysmemImportSparseDmaBufOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+			goto PhysmemImportSparseDmaBuf_exit;
 		}
 	}
 
@@ -274,7 +239,9 @@ PVRSRVBridgePhysmemImportSparseDmaBuf(IMG_UINT32 ui32DispatchTableEntry,
 			/* Copy the data over */
 			if (psPhysmemImportSparseDmaBufIN->ui32NumPhysChunks * sizeof(IMG_UINT32) > 0)
 			{
-				if ( OSCopyFromUser(NULL, ui32MappingTableInt, psPhysmemImportSparseDmaBufIN->pui32MappingTable, psPhysmemImportSparseDmaBufIN->ui32NumPhysChunks * sizeof(IMG_UINT32)) != PVRSRV_OK )
+				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psPhysmemImportSparseDmaBufIN->pui32MappingTable, psPhysmemImportSparseDmaBufIN->ui32NumPhysChunks * sizeof(IMG_UINT32))
+					|| (OSCopyFromUser(NULL, ui32MappingTableInt, psPhysmemImportSparseDmaBufIN->pui32MappingTable,
+					psPhysmemImportSparseDmaBufIN->ui32NumPhysChunks * sizeof(IMG_UINT32)) != PVRSRV_OK) )
 				{
 					psPhysmemImportSparseDmaBufOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
@@ -300,14 +267,12 @@ PVRSRVBridgePhysmemImportSparseDmaBuf(IMG_UINT32 ui32DispatchTableEntry,
 		goto PhysmemImportSparseDmaBuf_exit;
 	}
 
-	/* Lock over handle creation. */
-	LockHandle();
 
 
 
 
 
-	psPhysmemImportSparseDmaBufOUT->eError = PVRSRVAllocHandleUnlocked(psConnection->psHandleBase,
+	psPhysmemImportSparseDmaBufOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
 
 							&psPhysmemImportSparseDmaBufOUT->hPMRPtr,
 							(void *) psPMRPtrInt,
@@ -316,17 +281,13 @@ PVRSRVBridgePhysmemImportSparseDmaBuf(IMG_UINT32 ui32DispatchTableEntry,
 							,(PFN_HANDLE_RELEASE)&PMRUnrefPMR);
 	if (psPhysmemImportSparseDmaBufOUT->eError != PVRSRV_OK)
 	{
-		UnlockHandle();
 		goto PhysmemImportSparseDmaBuf_exit;
 	}
 
-	/* Release now we have created handles. */
-	UnlockHandle();
 
 
 
 PhysmemImportSparseDmaBuf_exit:
-
 
 
 	if (psPhysmemImportSparseDmaBufOUT->eError != PVRSRV_OK)
@@ -340,11 +301,7 @@ PhysmemImportSparseDmaBuf_exit:
 	/* Allocated space should be equal to the last updated offset */
 	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 
-#if defined(INTEGRITY_OS)
 	if(pArrayArgsBuffer)
-#else
-	if(!bHaveEnoughSpace && pArrayArgsBuffer)
-#endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
 

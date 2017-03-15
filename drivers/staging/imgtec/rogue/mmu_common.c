@@ -381,8 +381,7 @@ _CleanupThread_FreeMMUMapping(void* pvData)
 	{
 		/* Kick to invalidate the MMU caches and get sync info */
 		psDevNode->pfnMMUCacheInvalidateKick(psDevNode,
-											 &psCleanup->uiRequiredSyncVal,
-											 IMG_TRUE);
+											 &psCleanup->uiRequiredSyncVal);
 		psCleanup->psSync = psDevNode->psMMUCacheSyncPrim;
 	}
 
@@ -519,7 +518,6 @@ _SetupCleanup_FreeMMUMapping(PVRSRV_DEVICE_NODE *psDevNode,
 	psCleanupItem->sCleanupThreadFn.pfnFree = _CleanupThread_FreeMMUMapping;
 	psCleanupItem->sCleanupThreadFn.pvData = psCleanupItem;
 	psCleanupItem->sCleanupThreadFn.ui32RetryCount = CLEANUP_THREAD_RETRY_COUNT_DEFAULT;
-	psCleanupItem->sCleanupThreadFn.bDependsOnHW = IMG_TRUE;
 
 	PVRSRVCleanupThreadAddWork(&psCleanupItem->sCleanupThreadFn);
 
@@ -964,7 +962,9 @@ static PVRSRV_ERROR _PxMemAlloc(MMU_CONTEXT *psMMUContext,
 	PVRSRV_ERROR eError;
 	size_t uiBytes;
 	size_t uiAlign;
-
+#if defined(PDUMP)
+	PVRSRV_DEVICE_NODE *psDevNode = psMMUContext->psDevNode;
+#endif
 	PVR_ASSERT(psConfig->uiBytesPerEntry != 0);
 
 	uiBytes = uiNumEntries * psConfig->uiBytesPerEntry;
@@ -1002,28 +1002,28 @@ static PVRSRV_ERROR _PxMemAlloc(MMU_CONTEXT *psMMUContext,
 #if defined(PDUMP)
 	PDUMPCOMMENT("Alloc MMU object");
 
-	PDumpMMUMalloc(psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName,
-	               eMMULevel,
-	               &psMemDesc->sDevPAddr,
-	               uiBytes,
-	               uiAlign,
-	               psMMUContext->psDevAttrs->eMMUType);
+	PDumpMMUMalloc(psDevNode->pszMMUPxPDumpMemSpaceName,
+                   eMMULevel,
+                   &psMemDesc->sDevPAddr,
+                   uiBytes,
+                   uiAlign,
+                   psMMUContext->psDevAttrs->eMMUType);
 
 	PDumpMMUDumpPxEntries(eMMULevel,
-	                      psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName,
-	                      psMemDesc->pvCpuVAddr,
-	                      psMemDesc->sDevPAddr,
-	                      0,
-	                      uiNumEntries,
-	                      NULL, NULL, 0, /* pdump symbolic info is irrelevant here */
-	                      psConfig->uiBytesPerEntry,
-	                      uiLog2Align,
-	                      psConfig->uiAddrShift,
-	                      psConfig->uiAddrMask,
-	                      psConfig->uiProtMask,
-	                      psConfig->uiValidEnMask,
-	                      0,
-	                      psMMUContext->psDevAttrs->eMMUType);
+						  psDevNode->pszMMUPxPDumpMemSpaceName,
+						  psMemDesc->pvCpuVAddr,
+						  psMemDesc->sDevPAddr,
+						  0,
+						  uiNumEntries,
+						  NULL, NULL, 0, /* pdump symbolic info is irrelevant here */
+						  psConfig->uiBytesPerEntry,
+						  uiLog2Align,
+						  psConfig->uiAddrShift,
+						  psConfig->uiAddrMask,
+						  psConfig->uiProtMask,
+						  psConfig->uiValidEnMask,
+						  0,
+						  psMMUContext->psDevAttrs->eMMUType);
 #endif
 
 	return PVRSRV_OK;
@@ -1050,6 +1050,9 @@ e0:
 static void _PxMemFree(MMU_CONTEXT *psMMUContext,
 					   MMU_MEMORY_DESC *psMemDesc, MMU_LEVEL eMMULevel)
 {
+#if defined(PDUMP)
+	PVRSRV_DEVICE_NODE *psDevNode = psMMUContext->psDevNode;
+#endif
 #if defined(MMU_CLEARMEM_ON_FREE)
 	PVRSRV_ERROR eError;
 
@@ -1070,10 +1073,7 @@ static void _PxMemFree(MMU_CONTEXT *psMMUContext,
 #if defined(PDUMP)
 	PDUMPCOMMENT("Free MMU object");
 	{
-		PDumpMMUFree(psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName,
-		             eMMULevel,
-		             &psMemDesc->sDevPAddr,
-		             psMMUContext->psDevAttrs->eMMUType);
+		PDumpMMUFree(psDevNode->pszMMUPxPDumpMemSpaceName, eMMULevel, &psMemDesc->sDevPAddr, psMMUContext->psDevAttrs->eMMUType);
 	}
 #else
 	PVR_UNREFERENCED_PARAMETER(eMMULevel);
@@ -1153,22 +1153,22 @@ static INLINE PVRSRV_ERROR _SetupPTE(MMU_CONTEXT *psMMUContext,
 
 #if defined (PDUMP)
 	PDumpMMUDumpPxEntries(MMU_LEVEL_1,
-	                      psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName,
-	                      psMemDesc->pvCpuVAddr,
-	                      psMemDesc->sDevPAddr,
-	                      uiIndex,
-	                      1,
-	                      pszMemspaceName,
-	                      pszSymbolicAddr,
-	                      uiSymbolicAddrOffset,
-	                      psConfig->uiBytesPerEntry,
-	                      psConfig->uiAddrLog2Align,
-	                      psConfig->uiAddrShift,
-	                      psConfig->uiAddrMask,
-	                      psConfig->uiProtMask,
-	                      psConfig->uiValidEnMask,
-	                      0,
-	                      psMMUContext->psDevAttrs->eMMUType);
+						  psMMUContext->psDevNode->pszMMUPxPDumpMemSpaceName,
+						  psMemDesc->pvCpuVAddr,
+						  psMemDesc->sDevPAddr,
+						  uiIndex,
+						  1,
+						  pszMemspaceName,
+						  pszSymbolicAddr,
+						  uiSymbolicAddrOffset,
+						  psConfig->uiBytesPerEntry,
+						  psConfig->uiAddrLog2Align,
+						  psConfig->uiAddrShift,
+						  psConfig->uiAddrMask,
+						  psConfig->uiProtMask,
+						  psConfig->uiValidEnMask,
+						  0,
+						  psMMUContext->psDevAttrs->eMMUType);
 #endif /*PDUMP*/
 
 	return PVRSRV_OK;
@@ -1324,22 +1324,22 @@ static PVRSRV_ERROR _SetupPxE(MMU_CONTEXT *psMMUContext,
 
 #if defined (PDUMP)
 	PDumpMMUDumpPxEntries(eMMULevel,
-	                      psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName,
-	                      psMemDesc->pvCpuVAddr,
-	                      psMemDesc->sDevPAddr,
-	                      uiIndex,
-	                      1,
-	                      pszMemspaceName,
-	                      pszSymbolicAddr,
-	                      uiSymbolicAddrOffset,
-	                      psConfig->uiBytesPerEntry,
-	                      psConfig->uiAddrLog2Align,
-	                      psConfig->uiAddrShift,
-	                      psConfig->uiAddrMask,
-	                      psConfig->uiProtMask,
-	                      psConfig->uiValidEnMask,
-	                      0,
-	                      psMMUContext->psDevAttrs->eMMUType);
+						  psDevNode->pszMMUPxPDumpMemSpaceName,
+						  psMemDesc->pvCpuVAddr,
+						  psMemDesc->sDevPAddr,
+						  uiIndex,
+						  1,
+						  pszMemspaceName,
+						  pszSymbolicAddr,
+						  uiSymbolicAddrOffset,
+						  psConfig->uiBytesPerEntry,
+						  psConfig->uiAddrLog2Align,
+						  psConfig->uiAddrShift,
+						  psConfig->uiAddrMask,
+						  psConfig->uiProtMask,
+						  psConfig->uiValidEnMask,
+						  0,
+						  psMMUContext->psDevAttrs->eMMUType);
 #endif
 
 	psDevNode->pfnMMUCacheInvalidate(psDevNode, psMMUContext->hDevData,
@@ -2900,7 +2900,7 @@ MMU_MapPages(MMU_CONTEXT *psMMUContext,
 			                   &sDevPAddr,
 			                   IMG_FALSE,
 #if defined(PDUMP)
-			                   (bValid)?aszMemspaceName:(psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName),
+			                   (bValid)?aszMemspaceName:(psMMUContext->psDevNode->pszMMUPxPDumpMemSpaceName),
 			                   (bValid)?aszSymbolicAddress:DUMMY_PAGE,
 			                   (bValid)?uiSymbolicAddrOffset:0,
 #endif /*PDUMP*/
@@ -3009,14 +3009,13 @@ MMU_UnmapPages (MMU_CONTEXT *psMMUContext,
 	IMG_DEV_PHYADDR sDummyPgDevPhysAddr;
 	IMG_BOOL bUnmap = IMG_TRUE;
 
+	sDummyPgDevPhysAddr.uiAddr = psMMUContext->psDevNode->sDummyPage.ui64DummyPgPhysAddr;
 #if defined(PDUMP)
 	PDUMPCOMMENT("Invalidate %d entries in page tables for virtual range: 0x%010llX to 0x%010llX",
 	             ui32PageCount,
 	             (IMG_UINT64)sDevVAddr.uiAddr,
 	             ((IMG_UINT64)sDevVAddr.uiAddr) + (uiPageSize*ui32PageCount)-1);
 #endif
-
-	sDummyPgDevPhysAddr.uiAddr = psMMUContext->psDevNode->sDummyPage.ui64DummyPgPhysAddr;
 	bUnmap = (bDummyBacking)?IMG_FALSE:IMG_TRUE;
 	/* Get PT and address configs */
 	_MMU_GetPTConfig(psMMUContext, (IMG_UINT32) uiLog2PageSize,
@@ -3085,7 +3084,7 @@ MMU_UnmapPages (MMU_CONTEXT *psMMUContext,
 		              (bDummyBacking)?&sDummyPgDevPhysAddr:&gsBadDevPhyAddr,
 		              bUnmap,
 #if defined(PDUMP)
-		              (bDummyBacking)?(psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName):NULL,
+		              (bDummyBacking)?(psMMUContext->psDevNode->pszMMUPxPDumpMemSpaceName):NULL,
 		              (bDummyBacking)?DUMMY_PAGE:NULL,
 		              0U,
 #endif
@@ -3466,23 +3465,23 @@ MMU_UnmapPMRFast(MMU_CONTEXT *psMMUContext,
 			IMG_FALSE);
 
 #if defined (PDUMP)
-		PDumpMMUDumpPxEntries(MMU_LEVEL_1,
-		                      psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName,
-		                      psLevel->sMemDesc.pvCpuVAddr,
-		                      psLevel->sMemDesc.sDevPAddr,
-		                      uiPTEIndex,
-		                      1,
-		                      NULL,
-		                      NULL,
-		                      0,
-		                      psConfig->uiBytesPerEntry,
-		                      psConfig->uiAddrLog2Align,
-		                      psConfig->uiAddrShift,
-		                      psConfig->uiAddrMask,
-		                      psConfig->uiProtMask,
-		                      psConfig->uiValidEnMask,
-		                      0,
-		                      psMMUContext->psDevAttrs->eMMUType);
+	PDumpMMUDumpPxEntries(MMU_LEVEL_1,
+						  psMMUContext->psDevNode->pszMMUPxPDumpMemSpaceName,
+						  psLevel->sMemDesc.pvCpuVAddr,
+						  psLevel->sMemDesc.sDevPAddr,
+						  uiPTEIndex,
+						  1,
+						  NULL,
+						  NULL,
+						  0,
+						  psConfig->uiBytesPerEntry,
+						  psConfig->uiAddrLog2Align,
+						  psConfig->uiAddrShift,
+						  psConfig->uiAddrMask,
+						  psConfig->uiProtMask,
+						  psConfig->uiValidEnMask,
+						  0,
+						  psMMUContext->psDevAttrs->eMMUType);
 #endif /*PDUMP*/
 
 		sDevVAddr.uiAddr += uiPageSize;
@@ -3626,29 +3625,30 @@ MMU_ChangeValidity(MMU_CONTEXT *psMMUContext,
 		}
 
 #if defined(PDUMP)
+
 		PMR_PDumpSymbolicAddr(psPMR, i<<uiLog2PageSize,
-		                      sizeof(aszMemspaceName), &aszMemspaceName[0],
-		                      sizeof(aszSymbolicAddress), &aszSymbolicAddress[0],
-		                      &uiSymbolicAddrOffset,
-		                      &uiNextSymName);
+							   sizeof(aszMemspaceName), &aszMemspaceName[0],
+							   sizeof(aszSymbolicAddress), &aszSymbolicAddress[0],
+							   &uiSymbolicAddrOffset,
+							   &uiNextSymName);
 
 		PDumpMMUDumpPxEntries(MMU_LEVEL_1,
-		                      psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName,
-		                      psLevel->sMemDesc.pvCpuVAddr,
-		                      psLevel->sMemDesc.sDevPAddr,
-		                      uiPTIndex,
-		                      1,
-		                      aszMemspaceName,
-		                      aszSymbolicAddress,
-		                      uiSymbolicAddrOffset,
-		                      psConfig->uiBytesPerEntry,
-		                      psConfig->uiAddrLog2Align,
-		                      psConfig->uiAddrShift,
-		                      psConfig->uiAddrMask,
-		                      psConfig->uiProtMask,
-		                      psConfig->uiValidEnMask,
-		                      0,
-		                      psMMUContext->psDevAttrs->eMMUType);
+							  psMMUContext->psDevNode->pszMMUPxPDumpMemSpaceName,
+							  psLevel->sMemDesc.pvCpuVAddr,
+							  psLevel->sMemDesc.sDevPAddr,
+							  uiPTIndex,
+							  1,
+							  aszMemspaceName,
+							  aszSymbolicAddress,
+							  uiSymbolicAddrOffset,
+							  psConfig->uiBytesPerEntry,
+							  psConfig->uiAddrLog2Align,
+							  psConfig->uiAddrShift,
+							  psConfig->uiAddrMask,
+							  psConfig->uiProtMask,
+							  psConfig->uiValidEnMask,
+							  0,
+							  psMMUContext->psDevAttrs->eMMUType);
 #endif /*PDUMP*/
 
 		sDevVAddr.uiAddr += uiPageSize;
@@ -4048,27 +4048,28 @@ MMU_PDumpWritePageCatBase(MMU_CONTEXT *psMMUContext,
                           IMG_UINT32 ui32WordSize,
                           IMG_UINT32 ui32AlignShift,
                           IMG_UINT32 ui32Shift,
-                          PDUMP_FLAGS_T uiPdumpFlags)
+						  PDUMP_FLAGS_T uiPdumpFlags)
 {
-	PVRSRV_ERROR eError;
-	IMG_CHAR aszPageCatBaseSymbolicAddr[100];
-	const IMG_CHAR *pszPDumpDevName = psMMUContext->psDevAttrs->pszMMUPxPDumpMemSpaceName;
+    PVRSRV_ERROR eError;
+    IMG_CHAR aszPageCatBaseSymbolicAddr[100];
+	const IMG_CHAR *pszPDumpDevName = psMMUContext->psDevNode->pszMMUPxPDumpMemSpaceName;
+
 
 	eError = MMU_ContextDerivePCPDumpSymAddr(psMMUContext,
                                              &aszPageCatBaseSymbolicAddr[0],
                                              sizeof(aszPageCatBaseSymbolicAddr));
-	if (eError ==  PVRSRV_OK)
-	{
+    if (eError ==  PVRSRV_OK)
+    {
 		eError = PDumpWriteSymbAddress(pszSpaceName,
-		                               uiOffset,
-		                               aszPageCatBaseSymbolicAddr,
-		                               0, /* offset -- Could be non-zero for var. pgsz */
-		                               pszPDumpDevName,
-		                               ui32WordSize,
-		                               ui32AlignShift,
-		                               ui32Shift,
-		                               uiPdumpFlags | PDUMP_FLAGS_CONTINUOUS);
-	}
+										   uiOffset,
+										   aszPageCatBaseSymbolicAddr,
+										   0, /* offset -- Could be non-zero for var. pgsz */
+										   pszPDumpDevName,
+										   ui32WordSize,
+										   ui32AlignShift,
+										   ui32Shift,
+										   uiPdumpFlags | PDUMP_FLAGS_CONTINUOUS);
+    }
 
     return eError;
 }

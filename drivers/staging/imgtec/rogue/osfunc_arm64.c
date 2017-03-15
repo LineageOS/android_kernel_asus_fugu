@@ -60,8 +60,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 static void per_cpu_cache_flush(void *arg)
 {
+    PVR_UNREFERENCED_PARAMETER(arg);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,2,0))
-	static IMG_BOOL bLog = IMG_TRUE;
 	/*
 		NOTE: Regarding arm64 global flush support on >= Linux v4.2:
 		- Global cache flush support is deprecated from v4.2 onwards
@@ -73,15 +73,10 @@ static void per_cpu_cache_flush(void *arg)
 			- Disable KM cache maintenance support in UM cache.c
 			- Remove this PVR_LOG message
 	*/
-	if (bLog)
-	{
-		PVR_LOG(("Global d-cache flush assembly not implemented, using rangebased flush"));
-		bLog = IMG_FALSE;
-	}
+	PVR_LOG(("arm64: Global d-cache flush assembly not implemented"));
 #else
 	flush_cache_all();
 #endif
-	PVR_UNREFERENCED_PARAMETER(arg);
 }
 
 PVRSRV_ERROR OSCPUOperation(PVRSRV_CACHE_OP uiCacheOp)

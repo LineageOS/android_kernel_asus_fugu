@@ -389,7 +389,6 @@ void PVRSRVConnectionDisconnect(void *pvDataPtr)
 		psConnectionData->sCleanupThreadFn.pfnFree = _CleanupThreadPurgeConnectionData;
 		psConnectionData->sCleanupThreadFn.pvData = psConnectionData;
 		psConnectionData->sCleanupThreadFn.ui32RetryCount = CLEANUP_THREAD_RETRY_COUNT_DEFAULT;
-		psConnectionData->sCleanupThreadFn.bDependsOnHW = IMG_FALSE;
 		PVRSRVCleanupThreadAddWork(&psConnectionData->sCleanupThreadFn);
 	}
 }

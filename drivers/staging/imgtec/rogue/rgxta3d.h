@@ -470,6 +470,6 @@ void CheckForStalledRenderCtxt(PVRSRV_RGXDEV_INFO *psDevInfo,
 				void *pvDumpDebugFile);
 
 /* Debug/Watchdog - check if client contexts are stalled */
-IMG_UINT32 CheckForStalledClientRenderCtxt(PVRSRV_RGXDEV_INFO *psDevInfo);
+IMG_BOOL CheckForStalledClientRenderCtxt(PVRSRV_RGXDEV_INFO *psDevInfo);
 
 #endif /* __RGXTA3D_H__ */

@@ -1137,64 +1137,32 @@ PVRSRV_ERROR PVRSRVAllocHandle(PVRSRV_HANDLE_BASE *psBase,
 {
 	PVRSRV_ERROR eError;
 
-	LockHandle();
-	eError = PVRSRVAllocHandleUnlocked(psBase, phHandle, pvData, eType, eFlag, pfnReleaseData);
-	UnlockHandle();
-
-	return eError;
-}
-
-/*!
-******************************************************************************
-
- @Function	PVRSRVAllocHandleUnlocked
-
- @Description	Allocate a handle without acquiring/releasing the handle
-		lock. The function assumes you hold the lock when called.
-
- @Input		phHandle - location for new handle
-		pvData - pointer to resource to be associated with the handle
-		eType - the type of resource
-		pfnReleaseData - Function to release resource at handle release
-		                 time
-
- @Output	phHandle - points to new handle
-
- @Return	Error code or PVRSRV_OK
-
-******************************************************************************/
-PVRSRV_ERROR PVRSRVAllocHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
-			       IMG_HANDLE *phHandle,
-			       void *pvData,
-			       PVRSRV_HANDLE_TYPE eType,
-			       PVRSRV_HANDLE_ALLOC_FLAG eFlag,
-			       PFN_HANDLE_RELEASE pfnReleaseData)
-{
-	PVRSRV_ERROR eError;
-
 	*phHandle = NULL;
 
 	/* PVRSRV_HANDLE_TYPE_NONE is reserved for internal use */
 	PVR_ASSERT(eType != PVRSRV_HANDLE_TYPE_NONE);
 	PVR_ASSERT(gpsHandleFuncs);
 
+	LockHandle();
 	if (psBase == NULL)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVAllocHandle: Missing handle base"));
 		eError = PVRSRV_ERROR_INVALID_PARAMS;
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	if (pfnReleaseData == NULL)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVAllocHandle: Missing release function"));
 		eError = PVRSRV_ERROR_INVALID_PARAMS;
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	eError = AllocHandle(psBase, phHandle, pvData, eType, eFlag, NULL, pfnReleaseData);
 
-Exit:
+ExitUnlock:
+	UnlockHandle();
+
 	return eError;
 }
 
@@ -1222,40 +1190,6 @@ PVRSRV_ERROR PVRSRVAllocSubHandle(PVRSRV_HANDLE_BASE *psBase,
 				  PVRSRV_HANDLE_ALLOC_FLAG eFlag,
 				  IMG_HANDLE hParent)
 {
-	PVRSRV_ERROR eError;
-
-	LockHandle();
-	eError = PVRSRVAllocSubHandleUnlocked(psBase, phHandle, pvData, eType, eFlag, hParent);
-	UnlockHandle();
-
-	return eError;
-}
-
-/*!
-******************************************************************************
-
- @Function	PVRSRVAllocSubHandleUnlocked
-
- @Description	Allocate a subhandle without acquiring/releasing the
-		handle lock. The function assumes you hold the lock when called.
-
- @Input		phHandle - location for new subhandle
-		pvData - pointer to resource to be associated with the subhandle
-		eType - the type of resource
-		hParent - parent handle
-
- @Output	phHandle - points to new subhandle
-
- @Return	Error code or PVRSRV_OK
-
-******************************************************************************/
-PVRSRV_ERROR PVRSRVAllocSubHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
-				  IMG_HANDLE *phHandle,
-				  void *pvData,
-				  PVRSRV_HANDLE_TYPE eType,
-				  PVRSRV_HANDLE_ALLOC_FLAG eFlag,
-				  IMG_HANDLE hParent)
-{
 	HANDLE_DATA *psPHandleData = NULL;
 	HANDLE_DATA *psCHandleData = NULL;
 	IMG_HANDLE hParentKey;
@@ -1268,11 +1202,13 @@ PVRSRV_ERROR PVRSRVAllocSubHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 	PVR_ASSERT(eType != PVRSRV_HANDLE_TYPE_NONE);
 	PVR_ASSERT(gpsHandleFuncs);
 
+	LockHandle();
+
 	if (psBase == NULL)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVAllocSubHandle: Missing handle base"));
 		eError = PVRSRV_ERROR_INVALID_PARAMS;
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	hParentKey = TEST_FLAG(eFlag, PVRSRV_HANDLE_ALLOC_FLAG_PRIVATE) ? hParent : NULL;
@@ -1282,13 +1218,13 @@ PVRSRV_ERROR PVRSRVAllocSubHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVAllocSubHandle: Failed to get parent handle structure"));
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	eError = AllocHandle(psBase, &hHandle, pvData, eType, eFlag, hParentKey, NULL);
 	if (eError != PVRSRV_OK)
 	{
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	eError = GetHandleData(psBase, &psCHandleData, hHandle, PVRSRV_HANDLE_TYPE_NONE);
@@ -1300,7 +1236,7 @@ PVRSRV_ERROR PVRSRVAllocSubHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 		   can't also get it's handle structure. Otherwise something has gone badly wrong. */
 		PVR_ASSERT(eError == PVRSRV_OK);
 
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	/*
@@ -1314,7 +1250,7 @@ PVRSRV_ERROR PVRSRVAllocSubHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVAllocSubHandle: Failed to get parent handle structure"));
 
 		(void)FreeHandle(psBase, hHandle, eType, NULL);
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	eError = AdoptChild(psBase, psPHandleData, psCHandleData);
@@ -1323,14 +1259,16 @@ PVRSRV_ERROR PVRSRVAllocSubHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVAllocSubHandle: Parent handle failed to adopt subhandle"));
 
 		(void)FreeHandle(psBase, hHandle, eType, NULL);
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	*phHandle = hHandle;
 
 	eError = PVRSRV_OK;
 
-Exit:
+ExitUnlock:
+	UnlockHandle();
+
 	return eError;
 }
 
@@ -1355,38 +1293,6 @@ PVRSRV_ERROR PVRSRVFindHandle(PVRSRV_HANDLE_BASE *psBase,
 			      void *pvData,
 			      PVRSRV_HANDLE_TYPE eType)
 {
-	PVRSRV_ERROR eError;
-
-	LockHandle();
-	eError = PVRSRVFindHandleUnlocked(psBase, phHandle, pvData, eType);
-	UnlockHandle();
-
-	return eError;
-}
-
-/*!
-******************************************************************************
-
- @Function	PVRSRVFindHandleUnlocked
-
- @Description	Find handle corresponding to a resource pointer without
-		acquiring/releasing the handle lock. The function assumes you hold
-		the lock when called.
-
- @Input		phHandle - location for returned handle
-		pvData - pointer to resource to be associated with the handle
-		eType - the type of resource
-
- @Output	phHandle - points to handle
-
- @Return	Error code or PVRSRV_OK
-
-******************************************************************************/
-PVRSRV_ERROR PVRSRVFindHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
-			      IMG_HANDLE *phHandle,
-			      void *pvData,
-			      PVRSRV_HANDLE_TYPE eType)
-{
 	IMG_HANDLE hHandle;
 	PVRSRV_ERROR eError;
 
@@ -1394,11 +1300,13 @@ PVRSRV_ERROR PVRSRVFindHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 	PVR_ASSERT(eType != PVRSRV_HANDLE_TYPE_NONE);
 	PVR_ASSERT(gpsHandleFuncs);
 
+	LockHandle();
+
 	if (psBase == NULL)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVFindHandle: Missing handle base"));
 		eError = PVRSRV_ERROR_INVALID_PARAMS;
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	/* See if there is a handle for this data pointer */
@@ -1410,14 +1318,16 @@ PVRSRV_ERROR PVRSRVFindHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 			 eType));
 
 		eError = PVRSRV_ERROR_HANDLE_NOT_FOUND;
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	*phHandle = hHandle;
 
 	eError = PVRSRV_OK;
 
-Exit:
+ExitUnlock:
+	UnlockHandle();
+
 	return eError;
 
 }
@@ -1446,41 +1356,6 @@ PVRSRV_ERROR PVRSRVLookupHandle(PVRSRV_HANDLE_BASE *psBase,
 				PVRSRV_HANDLE_TYPE eType,
 				IMG_BOOL bRef)
 {
-	PVRSRV_ERROR eError;
-
-	LockHandle();
-	eError = PVRSRVLookupHandleUnlocked(psBase, ppvData, hHandle, eType, bRef);
-	UnlockHandle();
-
-	return eError;
-}
-
-/*!
-******************************************************************************
-
- @Function	PVRSRVLookupHandleUnlocked
-
- @Description	Lookup the data pointer corresponding to a handle without
- 		acquiring/releasing the handle lock. The function assumes you
-		hold the lock when called.
-
- @Input		ppvData - location to return data pointer
-		hHandle - handle from client
-		eType - handle type
-		bRef - If TRUE, a reference will be added on the handle if the
-		       lookup is successful.
-
- @Output	ppvData - points to the data pointer
-
- @Return	Error code or PVRSRV_OK
-
-******************************************************************************/
-PVRSRV_ERROR PVRSRVLookupHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
-				void **ppvData,
-				IMG_HANDLE hHandle,
-				PVRSRV_HANDLE_TYPE eType,
-				IMG_BOOL bRef)
-{
 	HANDLE_DATA *psHandleData = NULL;
 	PVRSRV_ERROR eError;
 
@@ -1488,11 +1363,13 @@ PVRSRV_ERROR PVRSRVLookupHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 	PVR_ASSERT(eType != PVRSRV_HANDLE_TYPE_NONE);
 	PVR_ASSERT(gpsHandleFuncs);
 
+	LockHandle();
+
 	if (psBase == NULL)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVLookupHandle: Missing handle base"));
 		eError = PVRSRV_ERROR_INVALID_PARAMS;
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	eError = GetHandleData(psBase, &psHandleData, hHandle, eType);
@@ -1506,7 +1383,7 @@ PVRSRV_ERROR PVRSRVLookupHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 #if defined(DEBUG) || defined(PVRSRV_NEED_PVR_DPF)
 		OSDumpStack();
 #endif
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	if(bRef)
@@ -1518,7 +1395,8 @@ PVRSRV_ERROR PVRSRVLookupHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
 
 	eError = PVRSRV_OK;
 
-Exit:
+ExitUnlock:
+	UnlockHandle();
 
 	return eError;
 }
@@ -1676,49 +1554,23 @@ PVRSRV_ERROR PVRSRVReleaseHandle(PVRSRV_HANDLE_BASE *psBase,
 {
 	PVRSRV_ERROR eError;
 
-	LockHandle();
-	eError = PVRSRVReleaseHandleUnlocked(psBase, hHandle, eType);
-	UnlockHandle();
-
-	return eError;
-}
-
-
-/*!
-******************************************************************************
-
- @Function	PVRSRVReleaseHandleUnlocked
-
- @Description	Release a handle that is no longer needed without
- 		acquiring/releasing the handle lock. The function assumes you
-		hold the lock when called.
-
- @Input 	hHandle - handle from client
-		eType - handle type
-
- @Return	Error code or PVRSRV_OK
-
-******************************************************************************/
-PVRSRV_ERROR PVRSRVReleaseHandleUnlocked(PVRSRV_HANDLE_BASE *psBase,
-				 IMG_HANDLE hHandle,
-				 PVRSRV_HANDLE_TYPE eType)
-{
-	PVRSRV_ERROR eError;
-
 	/* PVRSRV_HANDLE_TYPE_NONE is reserved for internal use */
 	PVR_ASSERT(eType != PVRSRV_HANDLE_TYPE_NONE);
 	PVR_ASSERT(gpsHandleFuncs);
+
+	LockHandle();
 
 	if (psBase == NULL)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVReleaseHandle: Missing handle base"));
 		eError = PVRSRV_ERROR_INVALID_PARAMS;
-		goto Exit;
+		goto ExitUnlock;
 	}
 
 	eError = FreeHandle(psBase, hHandle, eType, NULL);
 
-Exit:
+ExitUnlock:
+	UnlockHandle();
 
 	return eError;
 }

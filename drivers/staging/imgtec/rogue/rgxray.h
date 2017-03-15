@@ -362,6 +362,6 @@ void CheckForStalledRayCtxt(PVRSRV_RGXDEV_INFO *psDevInfo,
 				void *pvDumpDebugFile);
 
 /* Debug/Watchdog - check if client ray contexts are stalled */
-IMG_UINT32 CheckForStalledClientRayCtxt(PVRSRV_RGXDEV_INFO *psDevInfo);
+IMG_BOOL CheckForStalledClientRayCtxt(PVRSRV_RGXDEV_INFO *psDevInfo);
 
 #endif /* __RGXRAY_H__ */

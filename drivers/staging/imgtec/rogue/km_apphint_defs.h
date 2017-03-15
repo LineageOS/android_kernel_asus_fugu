@@ -79,12 +79,12 @@ X(WatchdogThreadWeight,             UINT32,         NEVER,       PVRSRV_APPHINT_
 X(EnableSignatureChecks,            BOOL,           PDUMP,       PVRSRV_APPHINT_ENABLESIGNATURECHECKS,            NULL             ) \
 X(SignatureChecksBufSize,           UINT32,         PDUMP,       PVRSRV_APPHINT_SIGNATURECHECKSBUFSIZE,           NULL             ) \
 \
-X(DisableClockGating,               BOOL,           FWDBGCTRL,   PVRSRV_APPHINT_DISABLECLOCKGATING,               NULL             ) \
-X(DisableDMOverlap,                 BOOL,           FWDBGCTRL,   PVRSRV_APPHINT_DISABLEDMOVERLAP,                 NULL             ) \
+X(DisableClockGating,               BOOL,           VALIDATION,  PVRSRV_APPHINT_DISABLECLOCKGATING,               NULL             ) \
+X(DisableDMOverlap,                 BOOL,           VALIDATION,  PVRSRV_APPHINT_DISABLEDMOVERLAP,                 NULL             ) \
 \
 X(EnableCDMKillingRandMode,         BOOL,           VALIDATION,  PVRSRV_APPHINT_ENABLECDMKILLINGRANDMODE,         NULL             ) \
-X(EnableFWContextSwitch,            UINT32,         FWDBGCTRL,   PVRSRV_APPHINT_ENABLEFWCONTEXTSWITCH,            NULL             ) \
-X(EnableRDPowerIsland,              UINT32,         FWDBGCTRL,   PVRSRV_APPHINT_ENABLERDPOWERISLAND,              NULL             ) \
+X(EnableFWContextSwitch,            UINT32,         VALIDATION,  PVRSRV_APPHINT_ENABLEFWCONTEXTSWITCH,            NULL             ) \
+X(EnableRDPowerIsland,              UINT32,         VALIDATION,  PVRSRV_APPHINT_ENABLERDPOWERISLAND,              NULL             ) \
 \
 X(GeneralNon4KHeapPageSize,         UINT32,         ALWAYS,      PVRSRV_APPHINT_GENERAL_NON4K_HEAP_PAGE_SIZE,     NULL             ) \
 \
@@ -98,7 +98,7 @@ X(JonesDisableMask,                 UINT32,         VALIDATION,  PVRSRV_APPHINT_
 X(NewFilteringMode,                 BOOL,           VALIDATION,  PVRSRV_APPHINT_NEWFILTERINGMODE,                 NULL             ) \
 X(TruncateMode,                     UINT32,         VALIDATION,  PVRSRV_APPHINT_TRUNCATEMODE,                     NULL             ) \
 X(UseMETAT1,                        UINT32,         VALIDATION,  PVRSRV_APPHINT_USEMETAT1,                        NULL             ) \
-X(RGXBVNC,                          STRING,         ALWAYS,      PVRSRV_APPHINT_RGXBVNC,                          NULL             ) \
+
 
 /*
 *******************************************************************************
@@ -110,7 +110,6 @@ X(EnableHTBLogGroup,                UINT32Bitfield, ALWAYS,      PVRSRV_APPHINT_
 X(HTBOperationMode,                 UINT32List,     ALWAYS,      PVRSRV_APPHINT_HTBOPERATIONMODE,                 htb_opmode_tbl   ) \
 X(HWPerfFWFilter,                   UINT64,         ALWAYS,      PVRSRV_APPHINT_HWPERFFWFILTER,                   NULL             ) \
 X(HWPerfHostFilter,                 UINT32,         ALWAYS,      PVRSRV_APPHINT_HWPERFHOSTFILTER,                 NULL             ) \
-X(TimeCorrClock,                    UINT32List,     ALWAYS,      PVRSRV_APPHINT_TIMECORRCLOCK,                    timecorr_clk_tbl )
 
 /*
 *******************************************************************************
@@ -160,14 +159,12 @@ X(BOOL) \
 X(UINT64) \
 X(UINT32) \
 X(UINT32Bitfield) \
-X(UINT32List) \
-X(STRING)
+X(UINT32List)
 
 #define APPHINT_CLASS_LIST \
 X(ALWAYS) \
 X(NEVER) \
 X(DEBUG) \
-X(FWDBGCTRL) \
 X(PDUMP) \
 X(VALIDATION) \
 X(GPUVIRT_VAL)
@@ -186,13 +183,6 @@ X(GPUVIRT_VAL)
 #else
 	#define APPHINT_ENABLED_CLASS_DEBUG IMG_FALSE
 	#define apphint_modparam_class_DEBUG(a, b, c)
-#endif
-#if defined(SUPPORT_FWDBGCTRL)
-	#define APPHINT_ENABLED_CLASS_FWDBGCTRL IMG_TRUE
-	#define apphint_modparam_class_FWDBGCTRL(a, b, c) apphint_modparam_enable(a, b, c)
-#else
-	#define APPHINT_ENABLED_CLASS_FWDBGCTRL IMG_FALSE
-	#define apphint_modparam_class_FWDBGCTRL(a, b, c)
 #endif
 #if defined(PDUMP)
 	#define APPHINT_ENABLED_CLASS_PDUMP IMG_TRUE

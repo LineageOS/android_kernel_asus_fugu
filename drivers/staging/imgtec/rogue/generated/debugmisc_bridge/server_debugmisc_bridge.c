@@ -98,7 +98,6 @@ PVRSRVBridgeDebugMiscSLCSetBypassState(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
 	return 0;
 }
 
@@ -120,7 +119,6 @@ PVRSRVBridgeRGXDebugMiscSetFWLog(IMG_UINT32 ui32DispatchTableEntry,
 	psRGXDebugMiscSetFWLogOUT->eError =
 		PVRSRVRGXDebugMiscSetFWLogKM(psConnection, OSGetDevData(psConnection),
 					psRGXDebugMiscSetFWLogIN->ui32RGXFWLogType);
-
 
 
 
@@ -150,7 +148,6 @@ PVRSRVBridgeRGXDebugMiscDumpFreelistPageList(IMG_UINT32 ui32DispatchTableEntry,
 	psRGXDebugMiscDumpFreelistPageListOUT->eError =
 		PVRSRVRGXDebugMiscDumpFreelistPageListKM(psConnection, OSGetDevData(psConnection)
 					);
-
 
 
 
@@ -190,14 +187,12 @@ PVRSRVBridgePhysmemImportSecBuf(IMG_UINT32 ui32DispatchTableEntry,
 		goto PhysmemImportSecBuf_exit;
 	}
 
-	/* Lock over handle creation. */
-	LockHandle();
 
 
 
 
 
-	psPhysmemImportSecBufOUT->eError = PVRSRVAllocHandleUnlocked(psConnection->psHandleBase,
+	psPhysmemImportSecBufOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
 
 							&psPhysmemImportSecBufOUT->hPMRPtr,
 							(void *) psPMRPtrInt,
@@ -206,17 +201,13 @@ PVRSRVBridgePhysmemImportSecBuf(IMG_UINT32 ui32DispatchTableEntry,
 							,(PFN_HANDLE_RELEASE)&PMRUnrefPMR);
 	if (psPhysmemImportSecBufOUT->eError != PVRSRV_OK)
 	{
-		UnlockHandle();
 		goto PhysmemImportSecBuf_exit;
 	}
 
-	/* Release now we have created handles. */
-	UnlockHandle();
 
 
 
 PhysmemImportSecBuf_exit:
-
 
 
 	if (psPhysmemImportSecBufOUT->eError != PVRSRV_OK)
@@ -256,7 +247,6 @@ PVRSRVBridgeRGXDebugMiscSetHCSDeadline(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
 	return 0;
 }
 
@@ -286,7 +276,6 @@ PVRSRVBridgeRGXDebugMiscSetOSidPriority(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
 	return 0;
 }
 
@@ -309,7 +298,6 @@ PVRSRVBridgeRGXDebugMiscSetOSNewOnlineState(IMG_UINT32 ui32DispatchTableEntry,
 		PVRSRVRGXDebugMiscSetOSNewOnlineStateKM(psConnection, OSGetDevData(psConnection),
 					psRGXDebugMiscSetOSNewOnlineStateIN->ui32OSid,
 					psRGXDebugMiscSetOSNewOnlineStateIN->ui32OSNewState);
-
 
 
 

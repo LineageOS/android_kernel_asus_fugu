@@ -94,7 +94,6 @@ PVRSRVBridgePDumpTraceBuffer(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-
 	return 0;
 }
 
@@ -116,7 +115,6 @@ PVRSRVBridgePDumpSignatureBuffer(IMG_UINT32 ui32DispatchTableEntry,
 	psPDumpSignatureBufferOUT->eError =
 		PVRSRVPDumpSignatureBufferKM(psConnection, OSGetDevData(psConnection),
 					psPDumpSignatureBufferIN->ui32PDumpFlags);
-
 
 
 

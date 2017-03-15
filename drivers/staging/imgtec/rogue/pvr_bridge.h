@@ -384,7 +384,9 @@ static const IMG_UINT32 gui32PVRBridges =
 #if defined(SUPPORT_SECURE_EXPORT)
 	| (1U << (PVRSRV_BRIDGE_SMM - PVRSRV_BRIDGE_FIRST))
 #endif
+#if defined(SUPPORT_PVRTL)
 	| (1U << (PVRSRV_BRIDGE_PVRTL - PVRSRV_BRIDGE_FIRST))
+#endif
 #if defined(PVR_RI_DEBUG)
 	| (1U << (PVRSRV_BRIDGE_RI - PVRSRV_BRIDGE_FIRST))
 #endif

@@ -202,7 +202,7 @@ PVRSRV_ERROR TLClientCloseStream(IMG_HANDLE hSrvHandle,
 	PVR_ASSERT(hSD);
 
 	/* Check the caller provided connection is valid */
-	if (!psSD->hServerSD)
+	if(!psSD->hServerSD)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "TLClientCloseStream: descriptor already closed/not open"));
 		return PVRSRV_ERROR_HANDLE_NOT_FOUND;
@@ -228,7 +228,7 @@ PVRSRV_ERROR TLClientCloseStream(IMG_HANDLE hSrvHandle,
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "BridgeTLCloseStream: KM returned %d", eError));
-		/* Not much we can do with error, fall through to clean up
+		/*/ Not much we can do with error, fall through to clean up
 		 * return eError; */
 	}
 
@@ -379,7 +379,7 @@ PVRSRV_ERROR TLClientAcquireData(IMG_HANDLE hSrvHandle,
 	}
 	else
 	{
-		/* On non-blocking, zero length data could be returned from server
+		/* On non blocking, zero length data could be returned from server
 		 * Which is basically a no-acquire operation */
 		*ppPacketBuf = 0;
 		*pui32BufLen = 0;
@@ -445,21 +445,7 @@ PVRSRV_ERROR TLClientWriteData(IMG_HANDLE hSrvHandle,
 	eError = BridgeTLWriteData(hSrvHandle, psSD->hServerSD, ui32Size, pui8Data);
 	if (eError != PVRSRV_OK)
 	{
-		if (eError == PVRSRV_ERROR_STREAM_RESERVE_TOO_BIG)
-		{
-			static IMG_BOOL bPrinted = IMG_FALSE;
-
-			if (!bPrinted) {
-				PVR_DPF((PVR_DBG_ERROR, "Not enough space. Failed to write"
-				        " data to the stream (%d).", eError));
-				bPrinted = IMG_TRUE;
-			}
-		}
-		else
-		{
-			PVR_DPF((PVR_DBG_ERROR, "TLClientWriteData: KM returned %d",
-			        eError));
-		}
+		PVR_DPF((PVR_DBG_ERROR, "TLClientWriteData: KM returned %d", eError));
 	}
 
 	return eError;

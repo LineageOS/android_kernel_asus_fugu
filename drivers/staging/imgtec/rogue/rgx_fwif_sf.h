@@ -235,7 +235,6 @@ X(143, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_UMQ_MISMATCHED_READ_OFFSET, "User Mode Qu
 X(144, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_SIDEKICK_DEINIT, "Sidekick deinit\n", 0) \
 X(145, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_RD_DEINIT, "Rascal+Dusts deinit\n", 0) \
 X(146, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_OS_INIT_CONFIG, "Initialised OS %d with config flags 0x%08x\n", 2) \
-X(148, RGXFW_GROUP_MAIN, RGXFW_SF_MAIN_3D_62850KICK, "3D Dummy stencil store\n", 0) \
 \
 X( 1, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_KICK_DEPRECATED, "Bg Task DM = %u, counted = %d\n", 2) \
 X( 2, RGXFW_GROUP_MTS, RGXFW_SF_MTS_BG_COMPLETE_DEPRECATED, "Bg Task complete DM = %u\n", 1) \
@@ -471,7 +470,6 @@ X(41, RGXFW_GROUP_POW, RGXFW_SF_POW_PDVFS_UNPROFILED_FINISHED, "Proactive DVFS: 
 X(42, RGXFW_GROUP_POW, RGXFW_SF_POW_PDVFS_DISABLED, "Proactive DVFS: Disabled: Not enabled by host.\n", 0) \
 X(43, RGXFW_GROUP_POW, RGXFW_SF_POW_HWREQ_RESULT, "HW Request Completed(1)/Aborted(0): %d, Ticks: %d\n", 2) \
 X(44, RGXFW_GROUP_POW, RGXFW_SF_POW_DUSTS_CHANGE_FIX_59042, "Allowed number of dusts is %d due to BRN59042.\n", 1) \
-X(45, RGXFW_GROUP_POW, RGXFW_SF_POW_HOST_TIMEOUT_NOTIFICATION, "Host timed out while waiting for a forced idle state. Pow state int: 0x%X, ext: 0x%X, flags: 0x%X\n", 3) \
 \
 X(1, RGXFW_GROUP_HWR, RGXFW_SF_HWR_LOCKUP_DEPRECATED, "Lockup detected on DM%d, FWCtx: %08.8X\n", 2) \
 X(2, RGXFW_GROUP_HWR, RGXFW_SF_HWR_RESET_FW_DEPRECATED, "Reset fw state for DM%d, FWCtx: %08.8X, MemCtx: %08.8X\n", 3) \
@@ -537,8 +535,6 @@ X(61, RGXFW_GROUP_HWR, RGXFW_SF_HWR_START_HW_RESET, "Begin hardware reset (HWR C
 X(62, RGXFW_GROUP_HWR, RGXFW_SF_HWR_FINISH_HW_RESET, "Finished hardware reset (HWR Counter=%d)\n", 1) \
 X(63, RGXFW_GROUP_HWR, RGXFW_SF_HWR_HOLD_SCHEDULING_DUE_TO_FREELIST, "Holding Scheduling on DM %u for OSid %u due to pending freelist reconstruction\n", 2) \
 X(64, RGXFW_GROUP_HWR, RGXFW_SF_HWR_RESET_UMQ_READ_OFFSET, "User Mode Queue ROff reset: FWCtx 0x%08.8X, queue: 0x%08X%08X (Roff = %u becomes StreamStartOffset = %u)\n", 5) \
-X(65, RGXFW_GROUP_HWR, RGXFW_SF_HWR_MIPS_FAULT, "Mips page fault detected (BadVAddr: 0x%08x, EntryLo0: 0x%08x, EntryLo1: 0x%08x)\n", 3) \
-X(67, RGXFW_GROUP_HWR, RGXFW_SF_HWR_ANOTHER_CHANCE, "At least one other DM is running okay so DM%u will get another chance\n", 1) \
 \
 X( 1, RGXFW_GROUP_HWP, RGXFW_SF_HWP_I_CFGBLK, "Block 0x%x mapped to Config Idx %u\n", 2) \
 X( 2, RGXFW_GROUP_HWP, RGXFW_SF_HWP_I_OMTBLK, "Block 0x%x omitted from event - not enabled in HW\n", 1) \

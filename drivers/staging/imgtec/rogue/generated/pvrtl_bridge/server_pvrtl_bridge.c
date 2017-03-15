@@ -82,9 +82,6 @@ PVRSRVBridgeTLOpenStream(IMG_UINT32 ui32DispatchTableEntry,
 
 	IMG_UINT32 ui32NextOffset = 0;
 	IMG_BYTE   *pArrayArgsBuffer = NULL;
-#if !defined(INTEGRITY_OS)
-	IMG_BOOL bHaveEnoughSpace = IMG_FALSE;
-#endif
 
 	IMG_UINT32 ui32BufferSize = 
 			(PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) +
@@ -97,28 +94,12 @@ PVRSRVBridgeTLOpenStream(IMG_UINT32 ui32DispatchTableEntry,
 
 	if (ui32BufferSize != 0)
 	{
-#if !defined(INTEGRITY_OS)
-		/* Try to use remainder of input buffer for copies if possible, word-aligned for safety. */
-		IMG_UINT32 ui32InBufferOffset = PVR_ALIGN(sizeof(*psTLOpenStreamIN), sizeof(unsigned long));
-		IMG_UINT32 ui32InBufferExcessSize = ui32InBufferOffset >= PVRSRV_MAX_BRIDGE_IN_SIZE ? 0 :
-			PVRSRV_MAX_BRIDGE_IN_SIZE - ui32InBufferOffset;
+		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
 
-		bHaveEnoughSpace = ui32BufferSize <= ui32InBufferExcessSize;
-		if (bHaveEnoughSpace)
+		if(!pArrayArgsBuffer)
 		{
-			IMG_BYTE *pInputBuffer = (IMG_BYTE *)psTLOpenStreamIN;
-
-			pArrayArgsBuffer = &pInputBuffer[ui32InBufferOffset];		}
-		else
-#endif
-		{
-			pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-			if(!pArrayArgsBuffer)
-			{
-				psTLOpenStreamOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-				goto TLOpenStream_exit;
-			}
+			psTLOpenStreamOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+			goto TLOpenStream_exit;
 		}
 	}
 
@@ -131,7 +112,9 @@ PVRSRVBridgeTLOpenStream(IMG_UINT32 ui32DispatchTableEntry,
 			/* Copy the data over */
 			if (PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR) > 0)
 			{
-				if ( OSCopyFromUser(NULL, uiNameInt, psTLOpenStreamIN->puiName, PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) != PVRSRV_OK )
+				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psTLOpenStreamIN->puiName, PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR))
+					|| (OSCopyFromUser(NULL, uiNameInt, psTLOpenStreamIN->puiName,
+					PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) != PVRSRV_OK) )
 				{
 					psTLOpenStreamOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
@@ -152,14 +135,12 @@ PVRSRVBridgeTLOpenStream(IMG_UINT32 ui32DispatchTableEntry,
 		goto TLOpenStream_exit;
 	}
 
-	/* Lock over handle creation. */
-	LockHandle();
 
 
 
 
 
-	psTLOpenStreamOUT->eError = PVRSRVAllocHandleUnlocked(psConnection->psHandleBase,
+	psTLOpenStreamOUT->eError = PVRSRVAllocHandle(psConnection->psHandleBase,
 
 							&psTLOpenStreamOUT->hSD,
 							(void *) psSDInt,
@@ -168,7 +149,6 @@ PVRSRVBridgeTLOpenStream(IMG_UINT32 ui32DispatchTableEntry,
 							,(PFN_HANDLE_RELEASE)&TLServerCloseStreamKM);
 	if (psTLOpenStreamOUT->eError != PVRSRV_OK)
 	{
-		UnlockHandle();
 		goto TLOpenStream_exit;
 	}
 
@@ -177,7 +157,7 @@ PVRSRVBridgeTLOpenStream(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-	psTLOpenStreamOUT->eError = PVRSRVAllocSubHandleUnlocked(psConnection->psHandleBase,
+	psTLOpenStreamOUT->eError = PVRSRVAllocSubHandle(psConnection->psHandleBase,
 
 							&psTLOpenStreamOUT->hTLPMR,
 							(void *) psTLPMRInt,
@@ -186,28 +166,22 @@ PVRSRVBridgeTLOpenStream(IMG_UINT32 ui32DispatchTableEntry,
 							,psTLOpenStreamOUT->hSD);
 	if (psTLOpenStreamOUT->eError != PVRSRV_OK)
 	{
-		UnlockHandle();
 		goto TLOpenStream_exit;
 	}
 
-	/* Release now we have created handles. */
-	UnlockHandle();
 
 
 
 TLOpenStream_exit:
 
 
-
 	if (psTLOpenStreamOUT->eError != PVRSRV_OK)
 	{
-		/* Lock over handle creation cleanup. */
-		LockHandle();
 		if (psTLOpenStreamOUT->hSD)
 		{
 
 
-			PVRSRV_ERROR eError = PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+			PVRSRV_ERROR eError = PVRSRVReleaseHandle(psConnection->psHandleBase,
 						(IMG_HANDLE) psTLOpenStreamOUT->hSD,
 						PVRSRV_HANDLE_TYPE_PVR_TL_SD);
 			if ((eError != PVRSRV_OK) && (eError != PVRSRV_ERROR_RETRY))
@@ -225,8 +199,6 @@ TLOpenStream_exit:
 		}
 
 
-		/* Release now we have cleaned up creation handles. */
-		UnlockHandle();
 		if (psSDInt)
 		{
 			TLServerCloseStreamKM(psSDInt);
@@ -236,11 +208,7 @@ TLOpenStream_exit:
 	/* Allocated space should be equal to the last updated offset */
 	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 
-#if defined(INTEGRITY_OS)
 	if(pArrayArgsBuffer)
-#else
-	if(!bHaveEnoughSpace && pArrayArgsBuffer)
-#endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
 
@@ -263,15 +231,13 @@ PVRSRVBridgeTLCloseStream(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-	/* Lock over handle destruction. */
-	LockHandle();
 
 
 
 
 
 	psTLCloseStreamOUT->eError =
-		PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+		PVRSRVReleaseHandle(psConnection->psHandleBase,
 					(IMG_HANDLE) psTLCloseStreamIN->hSD,
 					PVRSRV_HANDLE_TYPE_PVR_TL_SD);
 	if ((psTLCloseStreamOUT->eError != PVRSRV_OK) &&
@@ -281,17 +247,13 @@ PVRSRVBridgeTLCloseStream(IMG_UINT32 ui32DispatchTableEntry,
 		        "PVRSRVBridgeTLCloseStream: %s",
 		        PVRSRVGetErrorStringKM(psTLCloseStreamOUT->eError)));
 		PVR_ASSERT(0);
-		UnlockHandle();
 		goto TLCloseStream_exit;
 	}
 
-	/* Release now we have destroyed handles. */
-	UnlockHandle();
 
 
 
 TLCloseStream_exit:
-
 
 
 
@@ -314,8 +276,6 @@ PVRSRVBridgeTLAcquireData(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-	/* Lock over handle lookup. */
-	LockHandle();
 
 
 
@@ -324,19 +284,16 @@ PVRSRVBridgeTLAcquireData(IMG_UINT32 ui32DispatchTableEntry,
 				{
 					/* Look up the address from the handle */
 					psTLAcquireDataOUT->eError =
-						PVRSRVLookupHandleUnlocked(psConnection->psHandleBase,
+						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSDInt,
 											hSD,
 											PVRSRV_HANDLE_TYPE_PVR_TL_SD,
 											IMG_TRUE);
 					if(psTLAcquireDataOUT->eError != PVRSRV_OK)
 					{
-						UnlockHandle();
 						goto TLAcquireData_exit;
 					}
 				}
-	/* Release now we have looked up handles. */
-	UnlockHandle();
 
 	psTLAcquireDataOUT->eError =
 		TLServerAcquireDataKM(
@@ -349,9 +306,6 @@ PVRSRVBridgeTLAcquireData(IMG_UINT32 ui32DispatchTableEntry,
 
 TLAcquireData_exit:
 
-	/* Lock over handle lookup cleanup. */
-	LockHandle();
-
 
 
 
@@ -361,13 +315,11 @@ TLAcquireData_exit:
 					/* Unreference the previously looked up handle */
 						if(psSDInt)
 						{
-							PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+							PVRSRVReleaseHandle(psConnection->psHandleBase,
 											hSD,
 											PVRSRV_HANDLE_TYPE_PVR_TL_SD);
 						}
 				}
-	/* Release now we have cleaned up look up handles. */
-	UnlockHandle();
 
 
 	return 0;
@@ -389,8 +341,6 @@ PVRSRVBridgeTLReleaseData(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-	/* Lock over handle lookup. */
-	LockHandle();
 
 
 
@@ -399,19 +349,16 @@ PVRSRVBridgeTLReleaseData(IMG_UINT32 ui32DispatchTableEntry,
 				{
 					/* Look up the address from the handle */
 					psTLReleaseDataOUT->eError =
-						PVRSRVLookupHandleUnlocked(psConnection->psHandleBase,
+						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSDInt,
 											hSD,
 											PVRSRV_HANDLE_TYPE_PVR_TL_SD,
 											IMG_TRUE);
 					if(psTLReleaseDataOUT->eError != PVRSRV_OK)
 					{
-						UnlockHandle();
 						goto TLReleaseData_exit;
 					}
 				}
-	/* Release now we have looked up handles. */
-	UnlockHandle();
 
 	psTLReleaseDataOUT->eError =
 		TLServerReleaseDataKM(
@@ -424,9 +371,6 @@ PVRSRVBridgeTLReleaseData(IMG_UINT32 ui32DispatchTableEntry,
 
 TLReleaseData_exit:
 
-	/* Lock over handle lookup cleanup. */
-	LockHandle();
-
 
 
 
@@ -436,13 +380,11 @@ TLReleaseData_exit:
 					/* Unreference the previously looked up handle */
 						if(psSDInt)
 						{
-							PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+							PVRSRVReleaseHandle(psConnection->psHandleBase,
 											hSD,
 											PVRSRV_HANDLE_TYPE_PVR_TL_SD);
 						}
 				}
-	/* Release now we have cleaned up look up handles. */
-	UnlockHandle();
 
 
 	return 0;
@@ -460,9 +402,6 @@ PVRSRVBridgeTLDiscoverStreams(IMG_UINT32 ui32DispatchTableEntry,
 
 	IMG_UINT32 ui32NextOffset = 0;
 	IMG_BYTE   *pArrayArgsBuffer = NULL;
-#if !defined(INTEGRITY_OS)
-	IMG_BOOL bHaveEnoughSpace = IMG_FALSE;
-#endif
 
 	IMG_UINT32 ui32BufferSize = 
 			(PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) +
@@ -477,28 +416,12 @@ PVRSRVBridgeTLDiscoverStreams(IMG_UINT32 ui32DispatchTableEntry,
 
 	if (ui32BufferSize != 0)
 	{
-#if !defined(INTEGRITY_OS)
-		/* Try to use remainder of input buffer for copies if possible, word-aligned for safety. */
-		IMG_UINT32 ui32InBufferOffset = PVR_ALIGN(sizeof(*psTLDiscoverStreamsIN), sizeof(unsigned long));
-		IMG_UINT32 ui32InBufferExcessSize = ui32InBufferOffset >= PVRSRV_MAX_BRIDGE_IN_SIZE ? 0 :
-			PVRSRV_MAX_BRIDGE_IN_SIZE - ui32InBufferOffset;
+		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
 
-		bHaveEnoughSpace = ui32BufferSize <= ui32InBufferExcessSize;
-		if (bHaveEnoughSpace)
+		if(!pArrayArgsBuffer)
 		{
-			IMG_BYTE *pInputBuffer = (IMG_BYTE *)psTLDiscoverStreamsIN;
-
-			pArrayArgsBuffer = &pInputBuffer[ui32InBufferOffset];		}
-		else
-#endif
-		{
-			pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-			if(!pArrayArgsBuffer)
-			{
-				psTLDiscoverStreamsOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-				goto TLDiscoverStreams_exit;
-			}
+			psTLDiscoverStreamsOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+			goto TLDiscoverStreams_exit;
 		}
 	}
 
@@ -511,7 +434,9 @@ PVRSRVBridgeTLDiscoverStreams(IMG_UINT32 ui32DispatchTableEntry,
 			/* Copy the data over */
 			if (PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR) > 0)
 			{
-				if ( OSCopyFromUser(NULL, uiNamePatternInt, psTLDiscoverStreamsIN->puiNamePattern, PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) != PVRSRV_OK )
+				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psTLDiscoverStreamsIN->puiNamePattern, PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR))
+					|| (OSCopyFromUser(NULL, uiNamePatternInt, psTLDiscoverStreamsIN->puiNamePattern,
+					PRVSRVTL_MAX_STREAM_NAME_SIZE * sizeof(IMG_CHAR)) != PVRSRV_OK) )
 				{
 					psTLDiscoverStreamsOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
@@ -537,8 +462,9 @@ PVRSRVBridgeTLDiscoverStreams(IMG_UINT32 ui32DispatchTableEntry,
 
 	if ((psTLDiscoverStreamsIN->ui32Max * sizeof(IMG_UINT32)) > 0)
 	{
-		if ( OSCopyToUser(NULL, psTLDiscoverStreamsOUT->pui32Streams, pui32StreamsInt,
-			(psTLDiscoverStreamsIN->ui32Max * sizeof(IMG_UINT32))) != PVRSRV_OK )
+		if ( !OSAccessOK(PVR_VERIFY_WRITE, (void*) psTLDiscoverStreamsOUT->pui32Streams, (psTLDiscoverStreamsIN->ui32Max * sizeof(IMG_UINT32)))
+			|| (OSCopyToUser(NULL, psTLDiscoverStreamsOUT->pui32Streams, pui32StreamsInt,
+			(psTLDiscoverStreamsIN->ui32Max * sizeof(IMG_UINT32))) != PVRSRV_OK) )
 		{
 			psTLDiscoverStreamsOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
@@ -550,15 +476,10 @@ PVRSRVBridgeTLDiscoverStreams(IMG_UINT32 ui32DispatchTableEntry,
 TLDiscoverStreams_exit:
 
 
-
 	/* Allocated space should be equal to the last updated offset */
 	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 
-#if defined(INTEGRITY_OS)
 	if(pArrayArgsBuffer)
-#else
-	if(!bHaveEnoughSpace && pArrayArgsBuffer)
-#endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
 
@@ -581,8 +502,6 @@ PVRSRVBridgeTLReserveStream(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-	/* Lock over handle lookup. */
-	LockHandle();
 
 
 
@@ -591,19 +510,16 @@ PVRSRVBridgeTLReserveStream(IMG_UINT32 ui32DispatchTableEntry,
 				{
 					/* Look up the address from the handle */
 					psTLReserveStreamOUT->eError =
-						PVRSRVLookupHandleUnlocked(psConnection->psHandleBase,
+						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSDInt,
 											hSD,
 											PVRSRV_HANDLE_TYPE_PVR_TL_SD,
 											IMG_TRUE);
 					if(psTLReserveStreamOUT->eError != PVRSRV_OK)
 					{
-						UnlockHandle();
 						goto TLReserveStream_exit;
 					}
 				}
-	/* Release now we have looked up handles. */
-	UnlockHandle();
 
 	psTLReserveStreamOUT->eError =
 		TLServerReserveStreamKM(
@@ -618,9 +534,6 @@ PVRSRVBridgeTLReserveStream(IMG_UINT32 ui32DispatchTableEntry,
 
 TLReserveStream_exit:
 
-	/* Lock over handle lookup cleanup. */
-	LockHandle();
-
 
 
 
@@ -630,13 +543,11 @@ TLReserveStream_exit:
 					/* Unreference the previously looked up handle */
 						if(psSDInt)
 						{
-							PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+							PVRSRVReleaseHandle(psConnection->psHandleBase,
 											hSD,
 											PVRSRV_HANDLE_TYPE_PVR_TL_SD);
 						}
 				}
-	/* Release now we have cleaned up look up handles. */
-	UnlockHandle();
 
 
 	return 0;
@@ -658,8 +569,6 @@ PVRSRVBridgeTLCommitStream(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-	/* Lock over handle lookup. */
-	LockHandle();
 
 
 
@@ -668,19 +577,16 @@ PVRSRVBridgeTLCommitStream(IMG_UINT32 ui32DispatchTableEntry,
 				{
 					/* Look up the address from the handle */
 					psTLCommitStreamOUT->eError =
-						PVRSRVLookupHandleUnlocked(psConnection->psHandleBase,
+						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSDInt,
 											hSD,
 											PVRSRV_HANDLE_TYPE_PVR_TL_SD,
 											IMG_TRUE);
 					if(psTLCommitStreamOUT->eError != PVRSRV_OK)
 					{
-						UnlockHandle();
 						goto TLCommitStream_exit;
 					}
 				}
-	/* Release now we have looked up handles. */
-	UnlockHandle();
 
 	psTLCommitStreamOUT->eError =
 		TLServerCommitStreamKM(
@@ -692,9 +598,6 @@ PVRSRVBridgeTLCommitStream(IMG_UINT32 ui32DispatchTableEntry,
 
 TLCommitStream_exit:
 
-	/* Lock over handle lookup cleanup. */
-	LockHandle();
-
 
 
 
@@ -704,13 +607,11 @@ TLCommitStream_exit:
 					/* Unreference the previously looked up handle */
 						if(psSDInt)
 						{
-							PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+							PVRSRVReleaseHandle(psConnection->psHandleBase,
 											hSD,
 											PVRSRV_HANDLE_TYPE_PVR_TL_SD);
 						}
 				}
-	/* Release now we have cleaned up look up handles. */
-	UnlockHandle();
 
 
 	return 0;
@@ -729,9 +630,6 @@ PVRSRVBridgeTLWriteData(IMG_UINT32 ui32DispatchTableEntry,
 
 	IMG_UINT32 ui32NextOffset = 0;
 	IMG_BYTE   *pArrayArgsBuffer = NULL;
-#if !defined(INTEGRITY_OS)
-	IMG_BOOL bHaveEnoughSpace = IMG_FALSE;
-#endif
 
 	IMG_UINT32 ui32BufferSize = 
 			(psTLWriteDataIN->ui32Size * sizeof(IMG_BYTE)) +
@@ -743,28 +641,12 @@ PVRSRVBridgeTLWriteData(IMG_UINT32 ui32DispatchTableEntry,
 
 	if (ui32BufferSize != 0)
 	{
-#if !defined(INTEGRITY_OS)
-		/* Try to use remainder of input buffer for copies if possible, word-aligned for safety. */
-		IMG_UINT32 ui32InBufferOffset = PVR_ALIGN(sizeof(*psTLWriteDataIN), sizeof(unsigned long));
-		IMG_UINT32 ui32InBufferExcessSize = ui32InBufferOffset >= PVRSRV_MAX_BRIDGE_IN_SIZE ? 0 :
-			PVRSRV_MAX_BRIDGE_IN_SIZE - ui32InBufferOffset;
+		pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
 
-		bHaveEnoughSpace = ui32BufferSize <= ui32InBufferExcessSize;
-		if (bHaveEnoughSpace)
+		if(!pArrayArgsBuffer)
 		{
-			IMG_BYTE *pInputBuffer = (IMG_BYTE *)psTLWriteDataIN;
-
-			pArrayArgsBuffer = &pInputBuffer[ui32InBufferOffset];		}
-		else
-#endif
-		{
-			pArrayArgsBuffer = OSAllocMemNoStats(ui32BufferSize);
-
-			if(!pArrayArgsBuffer)
-			{
-				psTLWriteDataOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
-				goto TLWriteData_exit;
-			}
+			psTLWriteDataOUT->eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+			goto TLWriteData_exit;
 		}
 	}
 
@@ -777,7 +659,9 @@ PVRSRVBridgeTLWriteData(IMG_UINT32 ui32DispatchTableEntry,
 			/* Copy the data over */
 			if (psTLWriteDataIN->ui32Size * sizeof(IMG_BYTE) > 0)
 			{
-				if ( OSCopyFromUser(NULL, psDataInt, psTLWriteDataIN->psData, psTLWriteDataIN->ui32Size * sizeof(IMG_BYTE)) != PVRSRV_OK )
+				if ( !OSAccessOK(PVR_VERIFY_READ, (void*) psTLWriteDataIN->psData, psTLWriteDataIN->ui32Size * sizeof(IMG_BYTE))
+					|| (OSCopyFromUser(NULL, psDataInt, psTLWriteDataIN->psData,
+					psTLWriteDataIN->ui32Size * sizeof(IMG_BYTE)) != PVRSRV_OK) )
 				{
 					psTLWriteDataOUT->eError = PVRSRV_ERROR_INVALID_PARAMS;
 
@@ -785,8 +669,6 @@ PVRSRVBridgeTLWriteData(IMG_UINT32 ui32DispatchTableEntry,
 				}
 			}
 
-	/* Lock over handle lookup. */
-	LockHandle();
 
 
 
@@ -795,19 +677,16 @@ PVRSRVBridgeTLWriteData(IMG_UINT32 ui32DispatchTableEntry,
 				{
 					/* Look up the address from the handle */
 					psTLWriteDataOUT->eError =
-						PVRSRVLookupHandleUnlocked(psConnection->psHandleBase,
+						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &psSDInt,
 											hSD,
 											PVRSRV_HANDLE_TYPE_PVR_TL_SD,
 											IMG_TRUE);
 					if(psTLWriteDataOUT->eError != PVRSRV_OK)
 					{
-						UnlockHandle();
 						goto TLWriteData_exit;
 					}
 				}
-	/* Release now we have looked up handles. */
-	UnlockHandle();
 
 	psTLWriteDataOUT->eError =
 		TLServerWriteDataKM(
@@ -820,9 +699,6 @@ PVRSRVBridgeTLWriteData(IMG_UINT32 ui32DispatchTableEntry,
 
 TLWriteData_exit:
 
-	/* Lock over handle lookup cleanup. */
-	LockHandle();
-
 
 
 
@@ -832,22 +708,16 @@ TLWriteData_exit:
 					/* Unreference the previously looked up handle */
 						if(psSDInt)
 						{
-							PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+							PVRSRVReleaseHandle(psConnection->psHandleBase,
 											hSD,
 											PVRSRV_HANDLE_TYPE_PVR_TL_SD);
 						}
 				}
-	/* Release now we have cleaned up look up handles. */
-	UnlockHandle();
 
 	/* Allocated space should be equal to the last updated offset */
 	PVR_ASSERT(ui32BufferSize == ui32NextOffset);
 
-#if defined(INTEGRITY_OS)
 	if(pArrayArgsBuffer)
-#else
-	if(!bHaveEnoughSpace && pArrayArgsBuffer)
-#endif
 		OSFreeMemNoStats(pArrayArgsBuffer);
 
 

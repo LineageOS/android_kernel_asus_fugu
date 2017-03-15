@@ -103,23 +103,20 @@ void RGXMMUCacheInvalidate(PVRSRV_DEVICE_NODE *psDeviceNode,
 }
 
 PVRSRV_ERROR RGXMMUCacheInvalidateKick(PVRSRV_DEVICE_NODE *psDevInfo,
-                                       IMG_UINT32 *pui32MMUInvalidateUpdate,
-                                       IMG_BOOL bInterrupt)
+                                       IMG_UINT32 *pui32MMUInvalidateUpdate)
 {
 	PVRSRV_ERROR eError;
 
 	eError = RGXPreKickCacheCommand(psDevInfo->pvDevice,
 	                                RGXFWIF_DM_GP,
-	                                pui32MMUInvalidateUpdate,
-	                                bInterrupt);
+	                                pui32MMUInvalidateUpdate);
 
 	return eError;
 }
 
 PVRSRV_ERROR RGXPreKickCacheCommand(PVRSRV_RGXDEV_INFO *psDevInfo,
                                     RGXFWIF_DM eDM,
-                                    IMG_UINT32 *pui32MMUInvalidateUpdate,
-                                    IMG_BOOL bInterrupt)
+                                    IMG_UINT32 *pui32MMUInvalidateUpdate)
 {
 	PVRSRV_DEVICE_NODE *psDeviceNode = psDevInfo->psDeviceNode;
 	RGXFWIF_KCCB_CMD sFlushCmd;
@@ -156,11 +153,6 @@ PVRSRV_ERROR RGXPreKickCacheCommand(PVRSRV_RGXDEV_INFO *psDevInfo,
 	if(psDevInfo->sDevFeatureCfg.ui64Features & RGX_FEATURE_SLC_VIVT_BIT_MASK)
 	{
 		gui32CacheOpps |= RGXFWIF_MMUCACHEDATA_FLAGS_CTX_ALL;
-	}
-	/* Indicate the firmware should signal command completion to the host */
-	if(bInterrupt)
-	{
-		gui32CacheOpps |= RGXFWIF_MMUCACHEDATA_FLAGS_INTERRUPT;
 	}
 #if 0
 	sFlushCmd.uCmdData.sMMUCacheData.psMemoryContext = ???

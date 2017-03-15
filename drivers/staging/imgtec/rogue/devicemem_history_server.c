@@ -664,7 +664,7 @@ static IMG_UINT32 FindAllocation(const IMG_CHAR *pszName,
 		if(	(psAlloc->ui64Serial == ui64Serial) &&
 			(psAlloc->sDevVAddr.uiAddr == sDevVAddr.uiAddr) &&
 			(psAlloc->uiSize == uiSize) &&
-			(strcmp(psAlloc->szName, pszName) == 0))
+			(OSStringCompare(psAlloc->szName, pszName) == 0))
 		{
 			goto found;
 		}
@@ -765,7 +765,7 @@ static IMG_BOOL MatchAllocation(IMG_UINT32 ui32AllocationIndex,
 			(psAlloc->sDevVAddr.uiAddr == sDevVAddr.uiAddr) &&
 			(psAlloc->uiSize == uiSize) &&
 			(psAlloc->ui32Log2PageSize == ui32Log2PageSize) &&
-			(strcmp(psAlloc->szName, pszName) == 0);
+			(OSStringCompare(psAlloc->szName, pszName) == 0);
 }
 
 /* FindOrCreateAllocation:
@@ -1067,7 +1067,12 @@ PVRSRV_ERROR DevicememHistoryMapNewKM(PMR *psPMR,
 									__func__,
 									szName,
 									PVRSRVGETERRORSTRING(eError)));
-		goto out_unlock;
+	}
+
+	if(eError == PVRSRV_OK)
+	{
+		RECORD_ALLOCATION *psAlloc = ALLOC_INDEX_TO_PTR(ui32AllocationIndex);
+		psAlloc=psAlloc;
 	}
 
 	if(!bSparse)
@@ -1083,10 +1088,9 @@ PVRSRV_ERROR DevicememHistoryMapNewKM(PMR *psPMR,
 
 	InsertTimeStampCommand(OSClockns64());
 
-	*pui32AllocationIndexOut = ui32AllocationIndex;
-
-out_unlock:
 	DevicememHistoryUnlock();
+
+	*pui32AllocationIndexOut = ui32AllocationIndex;
 
 	return eError;
 }
@@ -1139,7 +1143,7 @@ PVRSRV_ERROR DevicememHistoryMapVRangeKM(IMG_DEV_VIRTADDR sBaseDevVAddr,
 						const IMG_CHAR szName[DEVICEMEM_HISTORY_TEXT_BUFSZ],
 						IMG_UINT32 ui32Log2PageSize,
 						IMG_UINT32 ui32AllocationIndex,
-						IMG_UINT32 *pui32AllocationIndexOut)
+						IMG_UINT32 *ui32AllocationIndexOut)
 {
 	IMG_PID uiPID = OSGetCurrentProcessID();
 	PVRSRV_ERROR eError;
@@ -1178,7 +1182,6 @@ PVRSRV_ERROR DevicememHistoryMapVRangeKM(IMG_DEV_VIRTADDR sBaseDevVAddr,
 									__func__,
 									szName,
 									PVRSRVGETERRORSTRING(eError)));
-		goto out_unlock;
 	}
 
 	VRangeInsertMapUnmapCommands(IMG_TRUE,
@@ -1188,12 +1191,9 @@ PVRSRV_ERROR DevicememHistoryMapVRangeKM(IMG_DEV_VIRTADDR sBaseDevVAddr,
 						ui32NumPages,
 						szName);
 
-	*pui32AllocationIndexOut = ui32AllocationIndex;
-
-out_unlock:
 	DevicememHistoryUnlock();
 
-	return eError;
+	return PVRSRV_OK;
 
 }
 
@@ -1204,7 +1204,7 @@ PVRSRV_ERROR DevicememHistoryUnmapVRangeKM(IMG_DEV_VIRTADDR sBaseDevVAddr,
 						const IMG_CHAR szName[DEVICEMEM_HISTORY_TEXT_BUFSZ],
 						IMG_UINT32 ui32Log2PageSize,
 						IMG_UINT32 ui32AllocationIndex,
-						IMG_UINT32 *pui32AllocationIndexOut)
+						IMG_UINT32 *ui32AllocationIndexOut)
 {
 	IMG_PID uiPID = OSGetCurrentProcessID();
 	PVRSRV_ERROR eError;
@@ -1243,7 +1243,6 @@ PVRSRV_ERROR DevicememHistoryUnmapVRangeKM(IMG_DEV_VIRTADDR sBaseDevVAddr,
 									__func__,
 									szName,
 									PVRSRVGETERRORSTRING(eError)));
-		goto out_unlock;
 	}
 
 	VRangeInsertMapUnmapCommands(IMG_FALSE,
@@ -1253,12 +1252,10 @@ PVRSRV_ERROR DevicememHistoryUnmapVRangeKM(IMG_DEV_VIRTADDR sBaseDevVAddr,
 						ui32NumPages,
 						szName);
 
-	*pui32AllocationIndexOut = ui32AllocationIndex;
-
-out_unlock:
 	DevicememHistoryUnlock();
 
-	return eError;
+	return PVRSRV_OK;
+
 }
 
 
@@ -1328,7 +1325,6 @@ PVRSRV_ERROR DevicememHistoryUnmapNewKM(PMR *psPMR,
 									__func__,
 									szName,
 									PVRSRVGETERRORSTRING(eError)));
-		goto out_unlock;
 	}
 
 	if(!bSparse)
@@ -1344,10 +1340,9 @@ PVRSRV_ERROR DevicememHistoryUnmapNewKM(PMR *psPMR,
 
 	InsertTimeStampCommand(OSClockns64());
 
-	*pui32AllocationIndexOut = ui32AllocationIndex;
-
-out_unlock:
 	DevicememHistoryUnlock();
+
+	*pui32AllocationIndexOut = ui32AllocationIndex;
 
 	return eError;
 }
@@ -1425,7 +1420,6 @@ PVRSRV_ERROR DevicememHistorySparseChangeKM(PMR *psPMR,
 									__func__,
 									szName,
 									PVRSRVGETERRORSTRING(eError)));
-		goto out_unlock;
 	}
 
 	GenerateMapUnmapCommandsForChangeList(ui32AllocPageCount,
@@ -1440,12 +1434,11 @@ PVRSRV_ERROR DevicememHistorySparseChangeKM(PMR *psPMR,
 
 	InsertTimeStampCommand(OSClockns64());
 
-	*pui32AllocationIndexOut = ui32AllocationIndex;
-
-out_unlock:
 	DevicememHistoryUnlock();
 
-	return eError;
+	*pui32AllocationIndexOut = ui32AllocationIndex;
+
+	return PVRSRV_OK;
 
 }
 
@@ -1611,18 +1604,12 @@ IMG_BOOL DevicememHistoryQuery(DEVICEMEM_HISTORY_QUERY_IN *psQueryIn,
 			{
 				goto found_pid;
 			}
-
-			if(ui32Alloc == gsDevicememHistoryData.sRecords.ui32AllocationsListHead)
-			{
-				/* gone through whole list */
-				break;
-			}
 		}
 
 		/* PID not found, so we do not have any suitable data for this
 		 * page fault
 		 */
-		 goto out_unlock;
+		 return IMG_FALSE;
 	}
 
 found_pid:
@@ -1723,16 +1710,10 @@ found_pid:
 				}
 
 				psQueryOut->ui32NumResults++;
-
-				if(psQueryOut->ui32NumResults == DEVICEMEM_HISTORY_QUERY_OUT_MAX_RESULTS)
-				{
-					break;
-				}
 			}
 		}
 	}
 
-out_unlock:
 	DevicememHistoryUnlock();
 
 	return psQueryOut->ui32NumResults > 0;

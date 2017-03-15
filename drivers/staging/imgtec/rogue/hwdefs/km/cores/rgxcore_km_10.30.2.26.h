@@ -42,8 +42,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef _RGXCORE_KM_10_30_2_26_H_
 #define _RGXCORE_KM_10_30_2_26_H_
 
-/***** Automatically generated file (23/02/2017 15:15:18): Do not edit manually ********************/
-/***** Timestamp:  (23/02/2017 15:15:18)************************************************************/
+/***** Automatically generated file (29/11/2016 07:01:41): Do not edit manually ********************/
+/***** Timestamp:  (29/11/2016 07:01:41)************************************************************/
 /***** CS: @3943572 ******************************************************************/
 
 

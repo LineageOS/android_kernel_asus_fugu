@@ -404,12 +404,18 @@ void OSDeInitEnvData(void)
 }
 
 PVRSRV_ERROR OSGetGlobalBridgeBuffers(void **ppvBridgeInBuffer,
-									  void **ppvBridgeOutBuffer)
+							IMG_UINT32 *pui32BridgeInBufferSize,
+							void **ppvBridgeOutBuffer,
+							IMG_UINT32 *pui32BridgeOutBufferSize)
 {
 	PVR_ASSERT (ppvBridgeInBuffer && ppvBridgeOutBuffer);
+	PVR_ASSERT (pui32BridgeInBufferSize && pui32BridgeOutBufferSize);
 
 	*ppvBridgeInBuffer = g_pvBridgeBuffers;
-	*ppvBridgeOutBuffer = *ppvBridgeInBuffer + PVRSRV_MAX_BRIDGE_IN_SIZE;
+	*pui32BridgeInBufferSize = PVRSRV_MAX_BRIDGE_IN_SIZE;
+
+	*ppvBridgeOutBuffer = *ppvBridgeInBuffer + *pui32BridgeInBufferSize;
+	*pui32BridgeOutBufferSize = PVRSRV_MAX_BRIDGE_OUT_SIZE;
 
 	return PVRSRV_OK;
 }
@@ -505,20 +511,6 @@ PVRSRV_ERROR OSClockMonotonicus64(IMG_UINT64 *pui64Time)
 
 	*pui64Time = OSDivide64r64(timenow, 1000, &remainder);
 	return PVRSRV_OK;
-}
-
-IMG_UINT64 OSClockMonotonicRawns64(void)
-{
-	struct timespec ts;
-
-	getrawmonotonic(&ts);
-	return (IMG_UINT64) ts.tv_sec * 1000000000 + ts.tv_nsec;
-}
-
-IMG_UINT64 OSClockMonotonicRawus64(void)
-{
-	IMG_UINT32 rem;
-	return OSDivide64r64(OSClockMonotonicRawns64(), 1000, &rem);
 }
 
 /*
@@ -1643,19 +1635,6 @@ void OSRemoveStatisticEntry(void *pvEntry)
 	PVRDebugFSRemoveStatisticEntry((PVR_DEBUGFS_DRIVER_STAT *)pvEntry);
 } /* OSRemoveStatisticEntry */
 
-#if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
-void *OSCreateRawStatisticEntry(const IMG_CHAR *pszFileName, void *pvParentDir,
-                                OS_STATS_PRINT_FUNC *pfStatsPrint)
-{
-	return (void *) PVRDebugFSCreateRawStatisticEntry(pszFileName, pvParentDir,
-	                                                  pfStatsPrint);
-}
-
-void OSRemoveRawStatisticEntry(void *pvEntry)
-{
-	PVRDebugFSRemoveRawStatisticEntry(pvEntry);
-}
-#endif
 
 /*************************************************************************/ /*!
 @Function		OSCreateStatisticFolder
@@ -1856,14 +1835,9 @@ PVRSRV_ERROR OSChangeSparseMemCPUAddrMap(void **psPageArray,
 
 /*************************************************************************/ /*!
 @Function       OSDebugSignalPID
-@Description    Sends a SIGTRAP signal to a specific PID in user mode for
-                debugging purposes. The user mode process can register a handler
-                against this signal.
-                This is necessary to support the Rogue debugger. If the Rogue
-                debugger is not used then this function may be implemented as
-                a stub.
+@Description    Sends a debug signal to a specific PID.
 @Input          ui32PID    The PID for the signal.
-@Return         PVRSRV_OK on success, a failure code otherwise.
+@Returns        PVRSRV_ERROR
 */ /**************************************************************************/
 PVRSRV_ERROR OSDebugSignalPID(IMG_UINT32 ui32PID)
 {

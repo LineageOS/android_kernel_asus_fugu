@@ -306,12 +306,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define	FIX_HW_BRN_62204_POS                                        	(31U)
 #define	FIX_HW_BRN_62204_BIT_MASK                                   	(IMG_UINT64_C(0x0000000080000000))
 
-#define	FIX_HW_BRN_63027_POS                                        	(32U)
-#define	FIX_HW_BRN_63027_BIT_MASK                                   	(IMG_UINT64_C(0x0000000100000000))
-
-#define	FIX_HW_BRN_63142_POS                                        	(33U)
-#define	FIX_HW_BRN_63142_BIT_MASK                                   	(IMG_UINT64_C(0x0000000200000000))
-
 
 
 #endif /*_RGX_BVNC_DEFS_KM_H_ */

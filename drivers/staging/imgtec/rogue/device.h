@@ -232,6 +232,7 @@ typedef struct _PVRSRV_DEVICE_NODE_
 								IMG_UINT32 uiLength);
 
 	IMG_UINT32 uiMMUPxLog2AllocGran;
+	IMG_CHAR				*pszMMUPxPDumpMemSpaceName;
 
 	void (*pfnMMUCacheInvalidate)(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
 								  IMG_HANDLE hDeviceData,
@@ -239,8 +240,7 @@ typedef struct _PVRSRV_DEVICE_NODE_
 								  IMG_BOOL bUnmap);
 
 	PVRSRV_ERROR (*pfnMMUCacheInvalidateKick)(struct _PVRSRV_DEVICE_NODE_ *psDevNode,
-	                                          IMG_UINT32 *pui32NextMMUInvalidateUpdate,
-	                                          IMG_BOOL bInterrupt);
+	                                          IMG_UINT32 *pui32NextMMUInvalidateUpdate);
 
 	IMG_UINT32 (*pfnMMUCacheGetInvalidateCounter)(struct _PVRSRV_DEVICE_NODE_ *psDevNode);
 

@@ -1173,6 +1173,8 @@ PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
 			{
 				psPMRMapTable->aui32Translation[pai32AllocIndices[ui32Loop]] = pai32AllocIndices[ui32Loop];
 			}
+
+			psPMRMapTable->ui32NumPhysChunks += ui32AdtnlAllocPages;
 		}
 
 		ui32Index = ui32Loop;
@@ -1253,6 +1255,8 @@ PMRChangeSparseMemLocalMem(PMR_IMPL_PRIVDATA pPriv,
 				/*Set the corresponding mapping table entry to invalid address */
 				psPMRMapTable->aui32Translation[pai32FreeIndices[ui32Index++]] = TRANSLATION_INVALID;
 			}
+
+			psPMRMapTable->ui32NumPhysChunks -= ui32AdtnlFreePages;
 		}
 
 	}
@@ -1380,7 +1384,6 @@ PhysmemNewLocalRamBackedPMR(PVRSRV_DEVICE_NODE *psDevNode,
 	IMG_BOOL bOnDemand;
 	IMG_BOOL bContig;
 	IMG_BOOL bFwLocalAlloc;
-	IMG_BOOL bCpuLocalAlloc;
 
 	if (PVRSRV_CHECK_KERNEL_CPU_MAPPABLE(uiFlags) &&
 		(ui32NumPhysChunks == ui32NumVirtChunks))
@@ -1394,7 +1397,6 @@ PhysmemNewLocalRamBackedPMR(PVRSRV_DEVICE_NODE *psDevNode,
 
 	bOnDemand = PVRSRV_CHECK_ON_DEMAND(uiFlags) ? IMG_TRUE : IMG_FALSE;
 	bFwLocalAlloc = PVRSRV_CHECK_FW_LOCAL(uiFlags) ? IMG_TRUE : IMG_FALSE;
-	bCpuLocalAlloc = PVRSRV_CHECK_CPU_LOCAL(uiFlags) ? IMG_TRUE : IMG_FALSE;
 	bZero = PVRSRV_CHECK_ZERO_ON_ALLOC(uiFlags) ? IMG_TRUE : IMG_FALSE;
 	bPoisonOnAlloc = PVRSRV_CHECK_POISON_ON_ALLOC(uiFlags) ? IMG_TRUE : IMG_FALSE;
 	bPoisonOnFree = PVRSRV_CHECK_POISON_ON_FREE(uiFlags) ? IMG_TRUE : IMG_FALSE;
@@ -1425,36 +1427,33 @@ PhysmemNewLocalRamBackedPMR(PVRSRV_DEVICE_NODE *psDevNode,
 		uiChunkSize = uiSize;
 	}
 
-	if (bFwLocalAlloc)
-	{
+    if (bFwLocalAlloc)
+    {
 		psPhysHeap = psDevNode->apsPhysHeap[PVRSRV_DEVICE_PHYS_HEAP_FW_LOCAL];
-	}
-	else if (bCpuLocalAlloc)
-	{
-		psPhysHeap = psDevNode->apsPhysHeap[PVRSRV_DEVICE_PHYS_HEAP_CPU_LOCAL];
-	}
-	else
-	{
-		psPhysHeap = psDevNode->apsPhysHeap[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL];
-	}
+    }
+    else
+    {
+    	psPhysHeap = psDevNode->apsPhysHeap[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL];
+    }
+
 
 	/* Create Array structure that holds the physical pages */
 	eError = _AllocLMPageArray(psDevNode,
-	                           uiChunkSize * ui32NumVirtChunks,
-	                           uiChunkSize,
-	                           ui32NumPhysChunks,
-	                           ui32NumVirtChunks,
-	                           pui32MappingTable,
-	                           uiLog2PageSize,
-	                           bZero,
-	                           bPoisonOnAlloc,
-	                           bPoisonOnFree,
-	                           bContig,
-	                           bOnDemand,
-	                           bFwLocalAlloc,
-	                           psPhysHeap,
-	                           uiFlags,
-	                           &psPrivData);
+						   uiChunkSize * ui32NumVirtChunks,
+						   uiChunkSize,
+                           ui32NumPhysChunks,
+                           ui32NumVirtChunks,
+                           pui32MappingTable,
+						   uiLog2PageSize,
+						   bZero,
+						   bPoisonOnAlloc,
+						   bPoisonOnFree,
+						   bContig,
+						   bOnDemand,
+						   bFwLocalAlloc,
+						   psPhysHeap,
+						   uiFlags,
+						   &psPrivData);
 	if (eError != PVRSRV_OK)
 	{
 		goto errorOnAllocPageArray;

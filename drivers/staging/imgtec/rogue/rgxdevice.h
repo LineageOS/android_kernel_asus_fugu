@@ -415,7 +415,7 @@ typedef struct _PVRSRV_RGXDEV_INFO_
 	IMG_UINT32				ui32GEOTimeoutsLastTime;
 
 	/* Client stall detection */
-	IMG_UINT32				ui32StalledClientMask;
+	IMG_BOOL				bStalledClient;
 #endif
 
 	IMG_BOOL				bWorkEstEnabled;

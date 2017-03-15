@@ -93,6 +93,8 @@ PVRSRV_BRIDGE_DISPATCH_TABLE_ENTRY g_BridgeDispatchTable[BRIDGE_DISPATCH_TABLE_E
 #define		PVR_DISPATCH_OFFSET_ARRAY_MAX 			2
 
 #define PVR_BUFFER_POOL_MAX 10
+#define PVR_BUFFER_POOL_IN_BUFFER_SIZE 0x200
+#define PVR_BUFFER_POOL_OUT_BUFFER_SIZE 0x100
 
 typedef struct
 {
@@ -1088,13 +1090,17 @@ void BridgeDeinit(void)
 }
 
 static PVR_POOL_BUFFER *_BridgePoolAcquireBuffer(void **ppvBridgeIn,
-                                                 void **ppvBridgeOut)
+                                                 IMG_UINT32 *ui32BridgeInBufferSize,
+                                                 void **ppvBridgeOut,
+                                                 IMG_UINT32 *ui32BridgeOutBufferSize)
 {
 	PVR_POOL_BUFFER *psPoolBuffer = NULL;
 	IMG_UINT i;
 
 	PVR_ASSERT(g_psBridgePool != NULL);
 	PVR_ASSERT(ppvBridgeIn != NULL && ppvBridgeOut != NULL);
+	PVR_ASSERT(ui32BridgeInBufferSize != NULL &&
+	           ui32BridgeOutBufferSize != NULL);
 
 	OSLockAcquire(g_psBridgePool->hLock);
 
@@ -1112,8 +1118,10 @@ static PVR_POOL_BUFFER *_BridgePoolAcquireBuffer(void **ppvBridgeIn,
 
 			psBuffer->bTaken = IMG_TRUE;
 			*ppvBridgeIn = psBuffer->pvBuffer;
+			*ui32BridgeInBufferSize = PVR_BUFFER_POOL_IN_BUFFER_SIZE;
 			*ppvBridgeOut = ((IMG_BYTE *) psBuffer->pvBuffer) +
-			        PVRSRV_MAX_BRIDGE_IN_SIZE;
+			        PVR_BUFFER_POOL_IN_BUFFER_SIZE;
+			*ui32BridgeOutBufferSize = PVR_BUFFER_POOL_OUT_BUFFER_SIZE;
 
 			psPoolBuffer = psBuffer;
 			goto return_;
@@ -1123,8 +1131,8 @@ static PVR_POOL_BUFFER *_BridgePoolAcquireBuffer(void **ppvBridgeIn,
 			PVR_DPF((PVR_DBG_VERBOSE, "_BridgePoolAcquireBuffer: "
 			        "Allocating new bridge buffer."));
 
-			psBuffer->pvBuffer = OSAllocZMemNoStats(PVRSRV_MAX_BRIDGE_IN_SIZE +
-			                                PVRSRV_MAX_BRIDGE_OUT_SIZE);
+			psBuffer->pvBuffer = OSAllocZMemNoStats(PVR_BUFFER_POOL_IN_BUFFER_SIZE +
+			                                PVR_BUFFER_POOL_OUT_BUFFER_SIZE);
 			if (psBuffer->pvBuffer == NULL)
 			{
 				PVR_DPF((PVR_DBG_ERROR, "_BridgePoolAcquireBuffer: "
@@ -1133,8 +1141,10 @@ static PVR_POOL_BUFFER *_BridgePoolAcquireBuffer(void **ppvBridgeIn,
 			}
 
 			*ppvBridgeIn = psBuffer->pvBuffer;
+			*ui32BridgeInBufferSize = PVR_BUFFER_POOL_IN_BUFFER_SIZE;
 			*ppvBridgeOut = ((IMG_BYTE *) psBuffer->pvBuffer) +
-			        PVRSRV_MAX_BRIDGE_IN_SIZE;
+			        PVR_BUFFER_POOL_IN_BUFFER_SIZE;
+			*ui32BridgeOutBufferSize = PVR_BUFFER_POOL_OUT_BUFFER_SIZE;
 			g_psBridgePool->uiCount++;
 
 			psPoolBuffer = psBuffer;
@@ -1180,6 +1190,8 @@ PVRSRV_ERROR BridgedDispatchKM(CONNECTION_DATA * psConnection,
 	BridgeWrapperFunction pfBridgeHandler;
 	IMG_UINT32   ui32DispatchTableEntry, ui32GroupBoundary;
 	PVRSRV_ERROR err = PVRSRV_OK;
+	IMG_UINT32	ui32BridgeInBufferSize;
+	IMG_UINT32	ui32BridgeOutBufferSize;
 	PVR_POOL_BUFFER *psPoolBuffer = NULL;
 	IMG_UINT32 ui32Timestamp = OSClockus();
 #if defined(DEBUG_BRIDGE_KM)
@@ -1256,7 +1268,9 @@ PVRSRV_ERROR BridgedDispatchKM(CONNECTION_DATA * psConnection,
 
 		/* Request for global bridge buffers */
 		OSGetGlobalBridgeBuffers(&psBridgeIn,
-		                         &psBridgeOut);
+		                         &ui32BridgeInBufferSize,
+		                         &psBridgeOut,
+		                         &ui32BridgeOutBufferSize);
 	}
 	else
 	{
@@ -1267,7 +1281,9 @@ PVRSRV_ERROR BridgedDispatchKM(CONNECTION_DATA * psConnection,
 		}
 
 		psPoolBuffer = _BridgePoolAcquireBuffer(&psBridgeIn,
-		                                        &psBridgeOut);
+		                                        &ui32BridgeInBufferSize,
+		                                        &psBridgeOut,
+		                                        &ui32BridgeOutBufferSize);
 		if (psPoolBuffer == NULL)
 		{
 			err = PVRSRV_ERROR_BRIDGE_ENOMEM;
@@ -1279,21 +1295,21 @@ PVRSRV_ERROR BridgedDispatchKM(CONNECTION_DATA * psConnection,
 	ui64TimeStart = OSClockns64();
 #endif
 
-	if (psBridgePackageKM->ui32InBufferSize > PVRSRV_MAX_BRIDGE_IN_SIZE)
+	if (psBridgePackageKM->ui32InBufferSize > ui32BridgeInBufferSize)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: Bridge input buffer too small "
 		        "(data size %u, buffer size %u)!", __FUNCTION__,
-		        psBridgePackageKM->ui32InBufferSize, PVRSRV_MAX_BRIDGE_IN_SIZE));
+		        psBridgePackageKM->ui32InBufferSize, ui32BridgeInBufferSize));
 		err = PVRSRV_ERROR_BRIDGE_ERANGE;
 		goto unlock_and_return_error;
 	}
 	
 #if !defined(INTEGRITY_OS)
-	if (psBridgePackageKM->ui32OutBufferSize > PVRSRV_MAX_BRIDGE_OUT_SIZE)
+	if (psBridgePackageKM->ui32OutBufferSize > ui32BridgeOutBufferSize)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: Bridge output buffer too small "
 		        "(data size %u, buffer size %u)!", __FUNCTION__,
-		        psBridgePackageKM->ui32OutBufferSize, PVRSRV_MAX_BRIDGE_OUT_SIZE));
+		        psBridgePackageKM->ui32OutBufferSize, ui32BridgeOutBufferSize));
 		err = PVRSRV_ERROR_BRIDGE_ERANGE;
 		goto unlock_and_return_error;
 	}

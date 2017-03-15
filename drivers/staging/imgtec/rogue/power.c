@@ -863,16 +863,24 @@ PVRSRV_ERROR PVRSRVDevicePreClockSpeedChange(PVRSRV_DEVICE_NODE *psDeviceNode,
 					return eError;
 				}
 			} END_LOOP_UNTIL_TIMEOUT();
-
-			if (eError == PVRSRV_ERROR_DEVICE_IDLE_REQUEST_DENIED)
-			{
-				PVRSRVPowerUnlock(psDeviceNode);
-				return eError;
-			}
 		}
 
-		eError = psPowerDevice->pfnPreClockSpeedChange(psPowerDevice->hDevCookie,
-		                                               psPowerDevice->eCurrentPowerState);
+		if (eError == PVRSRV_OK)
+		{
+			eError = psPowerDevice->pfnPreClockSpeedChange(psPowerDevice->hDevCookie,
+														   psPowerDevice->eCurrentPowerState);
+		}
+		else if (eError != PVRSRV_ERROR_DEVICE_IDLE_REQUEST_DENIED)
+		{
+			PVR_DPF((PVR_DBG_ERROR, "%s: Device %p failed (%s)",
+					 __func__, psDeviceNode, PVRSRVGetErrorStringKM(eError)));
+		}
+	}
+
+	if (eError != PVRSRV_OK)
+	{
+		PVRSRVPowerUnlock(psDeviceNode);
+		return eError;
 	}
 
 	ui64StopTimer = OSClockus();

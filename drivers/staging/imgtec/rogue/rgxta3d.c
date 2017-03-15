@@ -2824,6 +2824,8 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 	IMG_UINT32				ui32TACmdOffset=0;
 	IMG_UINT32				ui323DCmdOffset=0;
 	RGXFWIF_UFO				sPRUFO;
+	IMG_UINT32				*paui32Server3DSyncFlagsPR = NULL;
+	IMG_UINT32				*paui32Server3DSyncFlags3D = NULL;
 	IMG_UINT32				i;
 	PVRSRV_ERROR			eError = PVRSRV_OK;
 	PVRSRV_ERROR			eError2;
@@ -3176,7 +3178,6 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 		                                paui32ClientTAUpdateValue,
 		                                ui32ServerTASyncPrims,
 		                                paui32ServerTASyncFlags,
-		                                SYNC_FLAG_MASK_ALL,
 		                                pasServerTASyncs,
 		                                ui32TACmdSize,
 		                                pui8TADMCmd,
@@ -3224,6 +3225,29 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 	{
 		RGX_SERVER_RC_3D_DATA *ps3DData = &psRenderContext->s3DData;
 
+		if (ui32Server3DSyncPrims)
+		{
+			/*
+				The fence (and possible update) straddle multiple commands so
+				we have to modify the flags to do the right things at the right
+				time.
+				At this stage we should only fence, any updates will happen with
+				the normal 3D command.
+			*/
+			paui32Server3DSyncFlagsPR = OSAllocMem(sizeof(IMG_UINT32) * ui32Server3DSyncPrims);
+			if (paui32Server3DSyncFlagsPR == NULL)
+			{
+				eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+				goto fail_prserversyncflagsallocpr;
+			}
+
+			/* Copy only the fence flag across */
+			for (i=0;i<ui32Server3DSyncPrims;i++)
+			{
+				paui32Server3DSyncFlagsPR[i] = paui32Server3DSyncFlags[i] & PVRSRV_CLIENT_SYNC_PRIM_OP_CHECK;
+			}
+		}
+
 		/*
 			The command helper doesn't know about the PR fence so create
 			the command with all the fences against it and later create
@@ -3241,8 +3265,7 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 										NULL,
 										NULL,
 										(bKick3D ? ui32Server3DSyncPrims : 0),
-										paui32Server3DSyncFlags,
-										PVRSRV_CLIENT_SYNC_PRIM_OP_CHECK,
+										paui32Server3DSyncFlagsPR,
 										pasServer3DSyncs,
 										sizeof(sPRUFO),
 										(IMG_UINT8*) &sPRUFO,
@@ -3275,7 +3298,6 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 										paui32ClientPRUpdateValue,
 										0,
 										NULL,
-										SYNC_FLAG_MASK_ALL,
 										NULL,
 										ui323DPRCmdSize,
 										pui83DPRDMCmd,
@@ -3299,6 +3321,26 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 	{
 		RGX_SERVER_RC_3D_DATA *ps3DData = &psRenderContext->s3DData;
 
+		if (ui32Server3DSyncPrims)
+		{
+			/*
+				Copy only the update flags for the 3D as the fences will be in
+				the PR command created above
+			*/
+			paui32Server3DSyncFlags3D = OSAllocMem(sizeof(IMG_UINT32) * ui32Server3DSyncPrims);
+			if (paui32Server3DSyncFlags3D == NULL)
+			{
+				eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+				goto fail_prserversyncflagsalloc3d;
+			}
+
+			/* Copy only the update flag across */
+			for (i=0;i<ui32Server3DSyncPrims;i++)
+			{
+				paui32Server3DSyncFlags3D[i] = paui32Server3DSyncFlags[i] & PVRSRV_CLIENT_SYNC_PRIM_OP_UPDATE;
+			}
+		}
+
 #if defined(SUPPORT_WORKLOAD_ESTIMATION)
 		/* Prepare workload estimation */
 		WorkEstPrepare(psRenderContext->psDeviceNode->pvDevice,
@@ -3320,8 +3362,7 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 										pauiClient3DUpdateUFOAddress,
 										paui32Client3DUpdateValue,
 										ui32Server3DSyncPrims,
-										paui32Server3DSyncFlags,
-										PVRSRV_CLIENT_SYNC_PRIM_OP_UPDATE,
+										paui32Server3DSyncFlags3D,
 										pasServer3DSyncs,
 										ui323DCmdSize,
 										pui83DDMCmd,
@@ -3602,14 +3643,34 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 	}
 #endif
 
+	if(paui32Server3DSyncFlags3D)
+	{
+		OSFreeMem(paui32Server3DSyncFlags3D);
+	}
+
+	if(paui32Server3DSyncFlagsPR)
+	{
+		OSFreeMem(paui32Server3DSyncFlagsPR);
+	}
+
 	*pi32UpdateFenceFD = i32UpdateFenceFD;
 
 	return PVRSRV_OK;
 
 fail_3dacquirecmd:
 fail_3dcmdinit:
+	if (paui32Server3DSyncFlags3D)
+	{
+		OSFreeMem(paui32Server3DSyncFlags3D);
+	}
+fail_prserversyncflagsalloc3d:
 fail_prcmdinit:
 fail_prfencecmdinit:
+	if (paui32Server3DSyncFlagsPR)
+	{
+		OSFreeMem(paui32Server3DSyncFlagsPR);
+	}
+fail_prserversyncflagsallocpr:
 fail_taacquirecmd:
 fail_tacmdinit:
 #if defined(SUPPORT_NATIVE_FENCE_SYNC)
@@ -3760,36 +3821,37 @@ void CheckForStalledRenderCtxt(PVRSRV_RGXDEV_INFO *psDevInfo,
 	OSWRLockReleaseRead(psDevInfo->hRenderCtxListLock);
 }
 
-IMG_UINT32 CheckForStalledClientRenderCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
+IMG_BOOL CheckForStalledClientRenderCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
 {
 	DLLIST_NODE *psNode, *psNext;
-	IMG_UINT32 ui32ContextBitMask = 0;
+	IMG_BOOL bStalled = IMG_FALSE;
 
 	OSWRLockAcquireRead(psDevInfo->hRenderCtxListLock);
 
 	dllist_foreach_node(&psDevInfo->sRenderCtxtListHead, psNode, psNext)
 	{
+		IMG_BOOL bTAStalled=IMG_FALSE, b3DStalled = IMG_FALSE;
 		RGX_SERVER_RENDER_CONTEXT *psCurrentServerRenderCtx =
 			IMG_CONTAINER_OF(psNode, RGX_SERVER_RENDER_CONTEXT, sListNode);
 		if(NULL != psCurrentServerRenderCtx->sTAData.psServerCommonContext)
 		{
-			if (CheckStalledClientCommonContext(psCurrentServerRenderCtx->sTAData.psServerCommonContext, RGX_KICK_TYPE_DM_TA) == PVRSRV_ERROR_CCCB_STALLED)
-			{
-				ui32ContextBitMask |= RGX_KICK_TYPE_DM_TA;
-			}
+			bTAStalled = CheckStalledClientCommonContext(psCurrentServerRenderCtx->sTAData.psServerCommonContext) == PVRSRV_ERROR_CCCB_STALLED;
 		}
 
 		if(NULL != psCurrentServerRenderCtx->s3DData.psServerCommonContext)
 		{
-			if (CheckStalledClientCommonContext(psCurrentServerRenderCtx->s3DData.psServerCommonContext, RGX_KICK_TYPE_DM_3D) == PVRSRV_ERROR_CCCB_STALLED)
-			{
-				ui32ContextBitMask |= RGX_KICK_TYPE_DM_3D;
-			}
+			b3DStalled = CheckStalledClientCommonContext(psCurrentServerRenderCtx->s3DData.psServerCommonContext) == PVRSRV_ERROR_CCCB_STALLED;
+		}
+
+		if (bTAStalled || b3DStalled)
+		{
+			bStalled = IMG_TRUE;
+			break;
 		}
 	}
 
 	OSWRLockReleaseRead(psDevInfo->hRenderCtxListLock);
-	return ui32ContextBitMask;
+	return bStalled;
 }
 
 /******************************************************************************

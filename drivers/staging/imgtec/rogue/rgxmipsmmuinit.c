@@ -168,9 +168,6 @@ static MMU_DEVICEATTRIBS sRGXMMUDeviceAttributes;
 
 PVRSRV_ERROR RGXMipsMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
 {
-	sRGXMMUDeviceAttributes.pszMMUPxPDumpMemSpaceName =
-		PhysHeapPDumpMemspaceName(psDeviceNode->apsPhysHeap[PVRSRV_DEVICE_PHYS_HEAP_FW_LOCAL]);
-
 	/*
 	 * Setup sRGXMMUPCEConfig, no PC in MIPS MMU currently
 	 */

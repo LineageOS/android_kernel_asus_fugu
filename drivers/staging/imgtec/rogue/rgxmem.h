@@ -73,13 +73,11 @@ void RGXMMUCacheInvalidate(PVRSRV_DEVICE_NODE *psDeviceNode,
 						   IMG_BOOL bUnmap);
 
 PVRSRV_ERROR RGXMMUCacheInvalidateKick(PVRSRV_DEVICE_NODE *psDevInfo,
-                                       IMG_UINT32 *pui32NextMMUInvalidateUpdate,
-                                       IMG_BOOL bInterrupt);
+                                       IMG_UINT32 *pui32NextMMUInvalidateUpdate);
 
 PVRSRV_ERROR RGXPreKickCacheCommand(PVRSRV_RGXDEV_INFO *psDevInfo,
                                     RGXFWIF_DM eDM,
-                                    IMG_UINT32 *pui32MMUInvalidateUpdate,
-                                    IMG_BOOL bInterrupt);
+                                    IMG_UINT32 *pui32MMUInvalidateUpdate);
 
 void RGXUnregisterMemoryContext(IMG_HANDLE hPrivData);
 PVRSRV_ERROR RGXRegisterMemoryContext(PVRSRV_DEVICE_NODE	*psDeviceNode,

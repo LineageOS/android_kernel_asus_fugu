@@ -98,8 +98,6 @@ PVRSRVBridgeRGXNotifySignalUpdate(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
-	/* Lock over handle lookup. */
-	LockHandle();
 
 
 
@@ -108,19 +106,16 @@ PVRSRVBridgeRGXNotifySignalUpdate(IMG_UINT32 ui32DispatchTableEntry,
 				{
 					/* Look up the address from the handle */
 					psRGXNotifySignalUpdateOUT->eError =
-						PVRSRVLookupHandleUnlocked(psConnection->psHandleBase,
+						PVRSRVLookupHandle(psConnection->psHandleBase,
 											(void **) &hPrivDataInt,
 											hPrivData,
 											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA,
 											IMG_TRUE);
 					if(psRGXNotifySignalUpdateOUT->eError != PVRSRV_OK)
 					{
-						UnlockHandle();
 						goto RGXNotifySignalUpdate_exit;
 					}
 				}
-	/* Release now we have looked up handles. */
-	UnlockHandle();
 
 	psRGXNotifySignalUpdateOUT->eError =
 		PVRSRVRGXNotifySignalUpdateKM(psConnection, OSGetDevData(psConnection),
@@ -132,9 +127,6 @@ PVRSRVBridgeRGXNotifySignalUpdate(IMG_UINT32 ui32DispatchTableEntry,
 
 RGXNotifySignalUpdate_exit:
 
-	/* Lock over handle lookup cleanup. */
-	LockHandle();
-
 
 
 
@@ -144,13 +136,11 @@ RGXNotifySignalUpdate_exit:
 					/* Unreference the previously looked up handle */
 						if(hPrivDataInt)
 						{
-							PVRSRVReleaseHandleUnlocked(psConnection->psHandleBase,
+							PVRSRVReleaseHandle(psConnection->psHandleBase,
 											hPrivData,
 											PVRSRV_HANDLE_TYPE_DEV_PRIV_DATA);
 						}
 				}
-	/* Release now we have cleaned up look up handles. */
-	UnlockHandle();
 
 
 	return 0;
