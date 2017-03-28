@@ -62,6 +62,7 @@ void pvr_apphint_dump_state(void);
 int pvr_apphint_get_uint64(APPHINT_ID ue, IMG_UINT64 *pVal);
 int pvr_apphint_get_uint32(APPHINT_ID ue, IMG_UINT32 *pVal);
 int pvr_apphint_get_bool(APPHINT_ID ue, IMG_BOOL *pVal);
+int pvr_apphint_get_string(APPHINT_ID ue, IMG_CHAR *pBuffer, size_t size);
 
 void pvr_apphint_register_handlers_uint64(APPHINT_ID id,
 	PVRSRV_ERROR (*query)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_UINT64 *value),
@@ -76,6 +77,11 @@ void pvr_apphint_register_handlers_uint32(APPHINT_ID id,
 void pvr_apphint_register_handlers_bool(APPHINT_ID id,
 	PVRSRV_ERROR (*query)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_BOOL *value),
 	PVRSRV_ERROR (*set)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_BOOL value),
+	const PVRSRV_DEVICE_NODE *device,
+	const void *private_data);
+void pvr_apphint_register_handlers_string(APPHINT_ID id,
+	PVRSRV_ERROR (*query)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_CHAR **value),
+	PVRSRV_ERROR (*set)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_CHAR *value),
 	const PVRSRV_DEVICE_NODE *device,
 	const void *private_data);
 
@@ -120,6 +126,18 @@ static INLINE void pvr_apphint_register_handlers_bool(APPHINT_ID id,
 	PVR_UNREFERENCED_PARAMETER(private_data);
 }
 
+static INLINE void pvr_apphint_register_handlers_string(APPHINT_ID id,
+	PVRSRV_ERROR (*query)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_CHAR **value),
+	PVRSRV_ERROR (*set)(const PVRSRV_DEVICE_NODE *device, const void *private_data, IMG_CHAR *value),
+	const PVRSRV_DEVICE_NODE *device,
+	const void *private_data)
+{
+	PVR_UNREFERENCED_PARAMETER(id);
+	PVR_UNREFERENCED_PARAMETER(query);
+	PVR_UNREFERENCED_PARAMETER(set);
+	PVR_UNREFERENCED_PARAMETER(device);
+	PVR_UNREFERENCED_PARAMETER(private_data);
+}
 #endif
 
 #if defined(__cplusplus)

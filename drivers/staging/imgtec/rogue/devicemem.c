@@ -257,7 +257,7 @@ DeviceMemChangeSparse(DEVMEM_MEMDESC *psMemDesc,
 	 OSLockRelease(hLock);
 
 #if defined(PVR_RI_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+	if(PVRSRVIsBridgeEnabled(psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 	{
 		BridgeRIUpdateMEMDESCBacking(psImport->hDevConnection,
 		                             psMemDesc->hRIHandle,
@@ -267,21 +267,37 @@ DeviceMemChangeSparse(DEVMEM_MEMDESC *psMemDesc,
 #endif
 
 #if defined(SUPPORT_PAGE_FAULT_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_DEVICEMEMHISTORY))
+	if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_DEVICEMEMHISTORY))
 	{
-		BridgeDevicememHistorySparseChange(psMemDesc->psImport->hDevConnection,
-							psMemDesc->psImport->hPMR,
-							psMemDesc->uiOffset,
-							psMemDesc->sDeviceMemDesc.sDevVAddr,
-							psMemDesc->uiAllocSize,
-							psMemDesc->sTraceData.szText,
-							DevmemGetHeapLog2PageSize(psImport->sDeviceImport.psHeap),
-							ui32AllocPageCount,
-							paui32AllocPageIndices,
-							ui32FreePageCount,
-							pauiFreePageIndices,
-							psMemDesc->sTraceData.ui32AllocationIndex,
-							&psMemDesc->sTraceData.ui32AllocationIndex);
+		static IMG_BOOL bHaveNewAPI = IMG_TRUE;
+		PVRSRV_ERROR eError;
+
+		if(bHaveNewAPI)
+		{
+			eError = BridgeDevicememHistorySparseChange(psMemDesc->psImport->hDevConnection,
+								psMemDesc->psImport->hPMR,
+								psMemDesc->uiOffset,
+								psMemDesc->sDeviceMemDesc.sDevVAddr,
+								psMemDesc->uiAllocSize,
+								psMemDesc->sTraceData.szText,
+								DevmemGetHeapLog2PageSize(psImport->sDeviceImport.psHeap),
+								ui32AllocPageCount,
+								paui32AllocPageIndices,
+								ui32FreePageCount,
+								pauiFreePageIndices,
+								psMemDesc->sTraceData.ui32AllocationIndex,
+								&psMemDesc->sTraceData.ui32AllocationIndex);
+
+			 if(eError == PVRSRV_ERROR_BRIDGE_CALL_FAILED)
+			 {
+			 	bHaveNewAPI = IMG_FALSE;
+			 }
+		}
+
+		/* no fallback required here.
+		 * the old version of devicememhistory doesn't have entry
+		 * points for SparseChange
+		 */
 	}
 #endif
 
@@ -381,7 +397,7 @@ _SubAllocImportAlloc(RA_PERARENA_HANDLE hArena,
 #endif
 
 #if defined(PVR_RI_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+	if(PVRSRVIsBridgeEnabled(psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 	{
 		eError = BridgeRIWritePMREntry (psImport->hDevConnection,
 										psImport->hPMR,
@@ -1436,7 +1452,7 @@ DevmemSubAllocate(IMG_UINT8 uiPreAllocMultiplier,
 	}
 
 #if defined(SUPPORT_PAGE_FAULT_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_DEVICEMEMHISTORY))
+	if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_DEVICEMEMHISTORY))
 	{
 		/* copy the allocation descriptive name and size so it can be passed to DevicememHistory when
 		 * the allocation gets mapped/unmapped
@@ -1446,7 +1462,7 @@ DevmemSubAllocate(IMG_UINT8 uiPreAllocMultiplier,
 #endif
 
 #if defined(PVR_RI_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+	if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 	{
 		/* Attach RI information */
 		eError = BridgeRIWriteMEMDESCEntry (psMemDesc->psImport->hDevConnection,
@@ -1554,7 +1570,7 @@ DevmemAllocateExportable(SHARED_DEV_CONNECTION hDevConnection,
     *ppsMemDescPtr = psMemDesc;
 
 #if defined(SUPPORT_PAGE_FAULT_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_DEVICEMEMHISTORY))
+	if(PVRSRVIsBridgeEnabled(psImport->hDevConnection, PVRSRV_BRIDGE_DEVICEMEMHISTORY))
 	{
 		/* copy the allocation descriptive name and size so it can be passed to DevicememHistory when
 		 * the allocation gets mapped/unmapped
@@ -1564,7 +1580,7 @@ DevmemAllocateExportable(SHARED_DEV_CONNECTION hDevConnection,
 #endif
 
 #if defined(PVR_RI_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+	if(PVRSRVIsBridgeEnabled(psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 	{
 		eError = BridgeRIWritePMREntry (psImport->hDevConnection,
 		                                psImport->hPMR,
@@ -1690,7 +1706,7 @@ DevmemAllocateSparse(SHARED_DEV_CONNECTION hDevConnection,
 	                   uiSize);
 
 #if defined(SUPPORT_PAGE_FAULT_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_DEVICEMEMHISTORY))
+	if(PVRSRVIsBridgeEnabled(psImport->hDevConnection, PVRSRV_BRIDGE_DEVICEMEMHISTORY))
 	{
 		/* copy the allocation descriptive name and size so it can be passed to DevicememHistory when
 		 * the allocation gets mapped/unmapped
@@ -1700,7 +1716,7 @@ DevmemAllocateSparse(SHARED_DEV_CONNECTION hDevConnection,
 #endif
 
 #if defined(PVR_RI_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+	if(PVRSRVIsBridgeEnabled(psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 	{
 		eError = BridgeRIWritePMREntry (psImport->hDevConnection,
 		                                psImport->hPMR,
@@ -1963,7 +1979,7 @@ DevmemImport(SHARED_DEV_CONNECTION hDevConnection,
     *ppsMemDescPtr = psMemDesc;
 
 #if defined(PVR_RI_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+	if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 	{
 		/* Attach RI information */
 		eError = BridgeRIWriteMEMDESCEntry (psMemDesc->psImport->hDevConnection,
@@ -2063,7 +2079,7 @@ DevmemUnpin(DEVMEM_MEMDESC *psMemDesc)
 	{
 		psImport->uiProperties |= DEVMEM_PROPERTIES_UNPINNED;
 #if defined(PVR_RI_DEBUG)
-		if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+		if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 		{
 			if (psMemDesc->hRIHandle)
 			{
@@ -2126,7 +2142,7 @@ DevmemPin(DEVMEM_MEMDESC *psMemDesc)
 	{
 		psImport->uiProperties &= ~DEVMEM_PROPERTIES_UNPINNED;
 #if defined(PVR_RI_DEBUG)
-		if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+		if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 		{
 			if (psMemDesc->hRIHandle)
 			{
@@ -2184,7 +2200,7 @@ DevmemFree(DEVMEM_MEMDESC *psMemDesc)
 	}
 
 #if defined(PVR_RI_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+	if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 	{
 		if (psMemDesc->hRIHandle)
 		{
@@ -2267,22 +2283,41 @@ DevmemMapToDevice(DEVMEM_MEMDESC *psMemDesc,
     OSLockRelease(psMemDesc->sDeviceMemDesc.hLock);
 
 #if defined(SUPPORT_PAGE_FAULT_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_DEVICEMEMHISTORY))
+	if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_DEVICEMEMHISTORY))
 	{
-		BridgeDevicememHistoryMapNew(psMemDesc->psImport->hDevConnection,
-							psMemDesc->psImport->hPMR,
-							psMemDesc->uiOffset,
-							psMemDesc->sDeviceMemDesc.sDevVAddr,
-							psMemDesc->uiAllocSize,
-							psMemDesc->sTraceData.szText,
-							DevmemGetHeapLog2PageSize(psHeap),
-							psMemDesc->sTraceData.ui32AllocationIndex,
-							&psMemDesc->sTraceData.ui32AllocationIndex);
+		static IMG_BOOL bHaveNewAPI = IMG_TRUE;
+		PVRSRV_ERROR eError;
+
+		if(bHaveNewAPI)
+		{
+			eError = BridgeDevicememHistoryMapNew(psMemDesc->psImport->hDevConnection,
+								psMemDesc->psImport->hPMR,
+								psMemDesc->uiOffset,
+								psMemDesc->sDeviceMemDesc.sDevVAddr,
+								psMemDesc->uiAllocSize,
+								psMemDesc->sTraceData.szText,
+								DevmemGetHeapLog2PageSize(psHeap),
+								psMemDesc->sTraceData.ui32AllocationIndex,
+								&psMemDesc->sTraceData.ui32AllocationIndex);
+
+			if(eError == PVRSRV_ERROR_BRIDGE_CALL_FAILED)
+			{
+				bHaveNewAPI = IMG_FALSE;
+			}
+		}
+
+		if(!bHaveNewAPI)
+		{
+			BridgeDevicememHistoryMap(psMemDesc->psImport->hDevConnection,
+								psMemDesc->sDeviceMemDesc.sDevVAddr,
+								psMemDesc->uiAllocSize,
+								psMemDesc->sTraceData.szText);
+		}
 	}
 #endif
 
 #if defined(PVR_RI_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+	if(PVRSRVIsBridgeEnabled(psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 	{
 		if (psMemDesc->hRIHandle)
 		{
@@ -2373,22 +2408,41 @@ DevmemMapToDeviceAddress(DEVMEM_MEMDESC *psMemDesc,
     OSLockRelease(psMemDesc->sDeviceMemDesc.hLock);
 
 #if defined(SUPPORT_PAGE_FAULT_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_DEVICEMEMHISTORY))
+	if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_DEVICEMEMHISTORY))
 	{
-		BridgeDevicememHistoryMapNew(psMemDesc->psImport->hDevConnection,
-							psMemDesc->psImport->hPMR,
-							psMemDesc->uiOffset,
-							psMemDesc->sDeviceMemDesc.sDevVAddr,
-							psMemDesc->uiAllocSize,
-							psMemDesc->sTraceData.szText,
-							DevmemGetHeapLog2PageSize(psHeap),
-							psMemDesc->sTraceData.ui32AllocationIndex,
-							&psMemDesc->sTraceData.ui32AllocationIndex);
+		static IMG_BOOL bHaveNewAPI = IMG_TRUE;
+		PVRSRV_ERROR eError;
+
+		if(bHaveNewAPI)
+		{
+			eError = BridgeDevicememHistoryMapNew(psMemDesc->psImport->hDevConnection,
+								psMemDesc->psImport->hPMR,
+								psMemDesc->uiOffset,
+								psMemDesc->sDeviceMemDesc.sDevVAddr,
+								psMemDesc->uiAllocSize,
+								psMemDesc->sTraceData.szText,
+								DevmemGetHeapLog2PageSize(psHeap),
+								psMemDesc->sTraceData.ui32AllocationIndex,
+								&psMemDesc->sTraceData.ui32AllocationIndex);
+
+			if(eError == PVRSRV_ERROR_BRIDGE_CALL_FAILED)
+			{
+				bHaveNewAPI = IMG_FALSE;
+			}
+		}
+
+		if(!bHaveNewAPI)
+		{
+			BridgeDevicememHistoryMap(psMemDesc->psImport->hDevConnection,
+								psMemDesc->sDeviceMemDesc.sDevVAddr,
+								psMemDesc->uiAllocSize,
+								psMemDesc->sTraceData.szText);
+		}
 	}
 #endif
 
 #if defined(PVR_RI_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+	if(PVRSRVIsBridgeEnabled(psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 	{
 		if (psMemDesc->hRIHandle)
 		{
@@ -2472,17 +2526,36 @@ DevmemReleaseDevVirtAddr(DEVMEM_MEMDESC *psMemDesc)
 	if (--psMemDesc->sDeviceMemDesc.ui32RefCount == 0)
 	{
 #if defined(SUPPORT_PAGE_FAULT_DEBUG)
-		if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_DEVICEMEMHISTORY))
+		if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_DEVICEMEMHISTORY))
 		{
-			BridgeDevicememHistoryUnmapNew(psMemDesc->psImport->hDevConnection,
-								psMemDesc->psImport->hPMR,
-								psMemDesc->uiOffset,
-								psMemDesc->sDeviceMemDesc.sDevVAddr,
-								psMemDesc->uiAllocSize,
-								psMemDesc->sTraceData.szText,
-								DevmemGetHeapLog2PageSize(psMemDesc->psImport->sDeviceImport.psHeap),
-								psMemDesc->sTraceData.ui32AllocationIndex,
-								&psMemDesc->sTraceData.ui32AllocationIndex);
+			static IMG_BOOL bHaveNewAPI = IMG_TRUE;
+			PVRSRV_ERROR eError;
+
+			if(bHaveNewAPI)
+			{
+				eError = BridgeDevicememHistoryUnmapNew(psMemDesc->psImport->hDevConnection,
+									psMemDesc->psImport->hPMR,
+									psMemDesc->uiOffset,
+									psMemDesc->sDeviceMemDesc.sDevVAddr,
+									psMemDesc->uiAllocSize,
+									psMemDesc->sTraceData.szText,
+									DevmemGetHeapLog2PageSize(psMemDesc->psImport->sDeviceImport.psHeap),
+									psMemDesc->sTraceData.ui32AllocationIndex,
+									&psMemDesc->sTraceData.ui32AllocationIndex);
+
+				if(eError == PVRSRV_ERROR_BRIDGE_CALL_FAILED)
+				{
+					bHaveNewAPI = IMG_FALSE;
+				}
+			}
+
+			if(!bHaveNewAPI)
+			{
+				BridgeDevicememHistoryUnmap(psMemDesc->psImport->hDevConnection,
+									psMemDesc->sDeviceMemDesc.sDevVAddr,
+									psMemDesc->uiAllocSize,
+									psMemDesc->sTraceData.szText);
+			}
 		}
 #endif
 		_DevmemImportStructDevUnmap(psMemDesc->psImport);
@@ -2724,7 +2797,7 @@ DevmemLocalImport(IMG_HANDLE hBridge,
 		*puiSizePtr = uiSize;
 
 #if defined(PVR_RI_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_RI))
+	if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_RI))
 	{
 		/* Attach RI information.
 		 * Set backed size to 0 since this allocation has been allocated
@@ -2747,7 +2820,7 @@ DevmemLocalImport(IMG_HANDLE hBridge,
 #endif /* if defined(PVR_RI_DEBUG) */
 
 #if defined(SUPPORT_PAGE_FAULT_DEBUG)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_DEVICEMEMHISTORY))
+	if(PVRSRVIsBridgeEnabled(psMemDesc->psImport->hDevConnection, PVRSRV_BRIDGE_DEVICEMEMHISTORY))
 	{
 		/* copy the allocation descriptive name and size so it can be passed to DevicememHistory when
 		* the allocation gets mapped/unmapped

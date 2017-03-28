@@ -68,6 +68,14 @@ static struct mutex gDebugFSLock;
  Statistic entry read functions
 */ /**************************************************************************/
 
+#if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
+typedef struct _PVR_DEBUGFS_RAW_DRIVER_STAT_
+{
+	OS_STATS_PRINT_FUNC *pfStatsPrint;
+	PVR_DEBUGFS_ENTRY_DATA *pvDebugFsEntry;
+} PVR_DEBUGFS_RAW_DRIVER_STAT;
+#endif
+
 typedef struct _PVR_DEBUGFS_DRIVER_STAT_
 {
 	void				 *pvData;
@@ -701,6 +709,141 @@ void PVRDebugFSRemoveStatisticEntry(PVR_DEBUGFS_DRIVER_STAT *psStatEntry)
 	/* drop reference on pvStatEntry*/
 	_UnrefAndMaybeDestroyStatEntry(psStatEntry);
 }
+
+#if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
+static void *_DebugFSRawStatisticSeqStart(struct seq_file *psSeqFile,
+                                          loff_t *puiPosition)
+{
+	PVR_DEBUGFS_RAW_DRIVER_STAT *psStatData =
+	        (PVR_DEBUGFS_RAW_DRIVER_STAT *) psSeqFile->private;
+
+	if (psStatData)
+	{
+		if (*puiPosition == 0)
+		{
+			return psStatData;
+		}
+	}
+	else
+	{
+		PVR_DPF((PVR_DEBUGFS_PVR_DPF_LEVEL, "%s: Called when psStatData is"
+		        " NULL", __func__));
+	}
+
+	return NULL;
+}
+
+static void _DebugFSRawStatisticSeqStop(struct seq_file *psSeqFile,
+                                        void *pvData)
+{
+	PVR_DEBUGFS_RAW_DRIVER_STAT *psStatData =
+	        (PVR_DEBUGFS_RAW_DRIVER_STAT *) psSeqFile->private;
+
+	if (!psStatData)
+	{
+		PVR_DPF((PVR_DEBUGFS_PVR_DPF_LEVEL, "%s: Called when psStatData is"
+		        " NULL", __func__));
+	}
+}
+
+static void *_DebugFSRawStatisticSeqNext(struct seq_file *psSeqFile,
+                                         void *pvData,
+                                         loff_t *puiPosition)
+{
+	PVR_DEBUGFS_RAW_DRIVER_STAT *psStatData =
+	        (PVR_DEBUGFS_RAW_DRIVER_STAT *) psSeqFile->private;
+	PVR_UNREFERENCED_PARAMETER(pvData);
+
+	if (!psStatData)
+	{
+		PVR_DPF((PVR_DEBUGFS_PVR_DPF_LEVEL, "%s: Called when psStatData is"
+		        " NULL", __func__));
+	}
+
+	return NULL;
+}
+
+static int _DebugFSRawStatisticSeqShow(struct seq_file *psSeqFile, void *pvData)
+{
+	PVR_DEBUGFS_RAW_DRIVER_STAT *psStatData =
+	        (PVR_DEBUGFS_RAW_DRIVER_STAT *) pvData;
+
+	if (psStatData != NULL)
+	{
+		psStatData->pfStatsPrint((void *) psSeqFile, NULL,
+		                         _StatsSeqPrintf);
+		return 0;
+	}
+	else
+	{
+		PVR_DPF((PVR_DEBUGFS_PVR_DPF_LEVEL, "%s: Called when psStatData is"
+		        " NULL, returning -ENODATA(%d)", __FUNCTION__, -ENODATA));
+	}
+
+	return -ENODATA;
+}
+
+static struct seq_operations gsDebugFSRawStatisticReadOps =
+{
+	.start = _DebugFSRawStatisticSeqStart,
+	.stop  = _DebugFSRawStatisticSeqStop,
+	.next  = _DebugFSRawStatisticSeqNext,
+	.show  = _DebugFSRawStatisticSeqShow,
+};
+
+PVR_DEBUGFS_RAW_DRIVER_STAT *PVRDebugFSCreateRawStatisticEntry(
+                                             const IMG_CHAR *pszFileName,
+                                             void *pvParentDir,
+                                             OS_STATS_PRINT_FUNC *pfStatsPrint)
+{
+	PVR_DEBUGFS_RAW_DRIVER_STAT *psStatData;
+	PVR_DEBUGFS_ENTRY_DATA *psDebugFsEntry;
+
+	int iResult;
+
+	if (pszFileName == NULL || pfStatsPrint == NULL)
+	{
+		return NULL;
+	}
+
+	psStatData = OSAllocZMemNoStats(sizeof(*psStatData));
+	if (psStatData == NULL)
+	{
+		return NULL;
+	}
+
+	psStatData->pfStatsPrint = pfStatsPrint;
+
+	PVR_ASSERT((pvParentDir == NULL));
+
+	iResult = PVRDebugFSCreateEntry(pszFileName,
+	                                pvParentDir,
+	                                &gsDebugFSRawStatisticReadOps,
+	                                NULL,
+	                                NULL,
+	                                NULL,
+	                                psStatData,
+	                                &psDebugFsEntry);
+	if (iResult != 0)
+	{
+		OSFreeMemNoStats(psStatData);
+		return NULL;
+	}
+	psStatData->pvDebugFsEntry = (void *) psDebugFsEntry;
+
+	psDebugFsEntry->ui32RefCount = 1;
+
+	return psStatData;
+}
+
+void PVRDebugFSRemoveRawStatisticEntry(PVR_DEBUGFS_RAW_DRIVER_STAT *psStatEntry)
+{
+	PVR_ASSERT(psStatEntry != NULL);
+
+	PVRDebugFSRemoveEntry(&psStatEntry->pvDebugFsEntry);
+	OSFreeMemNoStats(psStatEntry);
+}
+#endif
 
 static IMG_BOOL _RefDirEntry(PVR_DEBUGFS_DIR_DATA *psDirEntry)
 {

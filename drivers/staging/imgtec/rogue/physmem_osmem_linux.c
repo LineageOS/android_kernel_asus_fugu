@@ -1036,6 +1036,7 @@ _SignalDeferFree(void)
 	psCleanupThreadFn->pfnFree = _CleanupThread_FreePoolPages;
 	psCleanupThreadFn->pvData = psCleanupThreadFn;
 	psCleanupThreadFn->ui32RetryCount = CLEANUP_THREAD_RETRY_COUNT_DEFAULT;
+	psCleanupThreadFn->bDependsOnHW = IMG_FALSE;
 	/* We must not hold the pool lock when calling AddWork because it might call us back to
 	 * free pooled pages directly when unloading the driver	 */
 	PVRSRVCleanupThreadAddWork(psCleanupThreadFn);
@@ -3002,7 +3003,6 @@ PMRChangeSparseMemOSMem(PMR_IMPL_PRIVDATA pPriv,
 				goto e0;
 			}
 
-			psPMRMapTable->ui32NumPhysChunks += ui32AdtnlAllocPages;
 			/*Mark the corresponding pages of translation table as valid */
 			for (ui32Loop = 0; ui32Loop < ui32AdtnlAllocPages; ui32Loop++)
 			{
@@ -3069,7 +3069,6 @@ PMRChangeSparseMemOSMem(PMR_IMPL_PRIVDATA pPriv,
 		{
 			goto e0;
 		}
-		psPMRMapTable->ui32NumPhysChunks -= ui32AdtnlFreePages;
 		while (ui32Loop < ui32FreePageCount)
 		{
 			psPMRMapTable->aui32Translation[pai32FreeIndices[ui32Loop]] = TRANSLATION_INVALID;
@@ -3153,6 +3152,7 @@ PhysmemNewOSRamBackedPMR(PVRSRV_DEVICE_NODE *psDevNode,
 	IMG_BOOL bPoisonOnFree;
 	IMG_BOOL bOnDemand;
 	IMG_BOOL bCpuLocal;
+	IMG_BOOL bFwLocal;
 	IMG_UINT32 ui32CPUCacheFlags = DevmemCPUCacheMode(psDevNode, uiFlags);
 	if (PVRSRV_CHECK_CPU_CACHE_CLEAN(uiFlags))
 	{
@@ -3192,6 +3192,7 @@ PhysmemNewOSRamBackedPMR(PVRSRV_DEVICE_NODE *psDevNode,
 	bIsCMA = uiLog2PageSize > PAGE_SHIFT ? IMG_TRUE : IMG_FALSE;
 	bOnDemand = PVRSRV_CHECK_ON_DEMAND(uiFlags) ? IMG_TRUE : IMG_FALSE;
 	bCpuLocal = PVRSRV_CHECK_CPU_LOCAL(uiFlags) ? IMG_TRUE : IMG_FALSE;
+	bFwLocal = PVRSRV_CHECK_FW_LOCAL(uiFlags) ? IMG_TRUE : IMG_FALSE;
 	bZero = PVRSRV_CHECK_ZERO_ON_ALLOC(uiFlags) ? IMG_TRUE : IMG_FALSE;
 	bPoisonOnAlloc = PVRSRV_CHECK_POISON_ON_ALLOC(uiFlags) ? IMG_TRUE : IMG_FALSE;
 	bPoisonOnFree = PVRSRV_CHECK_POISON_ON_FREE(uiFlags) ? IMG_TRUE : IMG_FALSE;
@@ -3274,7 +3275,12 @@ PhysmemNewOSRamBackedPMR(PVRSRV_DEVICE_NODE *psDevNode,
 		PDUMPCOMMENT("Deferred Allocation PMR (UMA)");
 	}
 
-	if (bCpuLocal)
+	if (bFwLocal)
+	{
+		PDUMPCOMMENT("FW_LOCAL allocation requested");
+		psPhysHeap = psDevNode->apsPhysHeap[PVRSRV_DEVICE_PHYS_HEAP_FW_LOCAL];
+	}
+	else if (bCpuLocal)
 	{
 		PDUMPCOMMENT("CPU_LOCAL allocation requested");
 		psPhysHeap = psDevNode->apsPhysHeap[PVRSRV_DEVICE_PHYS_HEAP_CPU_LOCAL];

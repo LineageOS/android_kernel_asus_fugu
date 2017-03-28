@@ -57,6 +57,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if defined(LINUX)
 #include "trace_events.h"
 #endif
+#include "rgxutils.h"
 
 /*
 *  Defines the number of fence updates to record so that future fences in the CCB
@@ -361,7 +362,7 @@ PVRSRV_ERROR RGXCreateCCB(PVRSRV_RGXDEV_INFO	*psDevInfo,
 								PVRSRV_MEMALLOCFLAG_DEVICE_FLAG(FIRMWARE_CACHED) |
 								PVRSRV_MEMALLOCFLAG_GPU_READABLE |
 								PVRSRV_MEMALLOCFLAG_GPU_WRITEABLE |
-								PVRSRV_MEMALLOCFLAG_UNCACHED |
+								PVRSRV_MEMALLOCFLAG_CPU_WRITE_COMBINE |
 								PVRSRV_MEMALLOCFLAG_ZERO_ON_ALLOC |
 								PVRSRV_MEMALLOCFLAG_KERNEL_CPU_MAPPABLE;
 
@@ -945,6 +946,7 @@ PVRSRV_ERROR RGXCmdHelperInitCmdCCB(RGX_CLIENT_CCB            *psClientCCB,
                                     IMG_UINT32                *paui32UpdateValue,
                                     IMG_UINT32                ui32ServerSyncCount,
                                     IMG_UINT32                *paui32ServerSyncFlags,
+                                    IMG_UINT32                ui32ServerSyncFlagMask,
                                     SERVER_SYNC_PRIMITIVE     **papsServerSyncs,
                                     IMG_UINT32                ui32CmdSize,
                                     IMG_PBYTE                 pui8DMCmd,
@@ -983,6 +985,7 @@ PVRSRV_ERROR RGXCmdHelperInitCmdCCB(RGX_CLIENT_CCB            *psClientCCB,
 	/* Server sync data */
 	psCmdHelperData->ui32ServerSyncCount = ui32ServerSyncCount;
 	psCmdHelperData->paui32ServerSyncFlags = paui32ServerSyncFlags;
+	psCmdHelperData->ui32ServerSyncFlagMask = ui32ServerSyncFlagMask;
 	psCmdHelperData->papsServerSyncs = papsServerSyncs;
 
 	/* Command data */
@@ -1032,17 +1035,19 @@ PVRSRV_ERROR RGXCmdHelperInitCmdCCB(RGX_CLIENT_CCB            *psClientCCB,
 	/* Workout how many fences and updates this command will have */
 	for (i = 0; i < ui32ServerSyncCount; i++)
 	{
-		if (paui32ServerSyncFlags[i] & PVRSRV_CLIENT_SYNC_PRIM_OP_CHECK)
+		IMG_UINT32 ui32Flag = paui32ServerSyncFlags[i] & ui32ServerSyncFlagMask;
+
+		if (ui32Flag & PVRSRV_CLIENT_SYNC_PRIM_OP_CHECK)
 		{
 			/* Server syncs must fence */
 			psCmdHelperData->ui32ServerFenceCount++;
 		}
 
 		/* If it is an update */
-		if (paui32ServerSyncFlags[i] & PVRSRV_CLIENT_SYNC_PRIM_OP_UPDATE)
+		if (ui32Flag & PVRSRV_CLIENT_SYNC_PRIM_OP_UPDATE)
 		{
 			/* is it a fenced update or a progress update (a.k.a unfenced update) ?*/
-			if ((paui32ServerSyncFlags[i] & PVRSRV_CLIENT_SYNC_PRIM_OP_UNFENCED_UPDATE) == PVRSRV_CLIENT_SYNC_PRIM_OP_UNFENCED_UPDATE)
+			if ((ui32Flag & PVRSRV_CLIENT_SYNC_PRIM_OP_UNFENCED_UPDATE) == PVRSRV_CLIENT_SYNC_PRIM_OP_UNFENCED_UPDATE)
 			{
 				/* it is a progress update */
 				psCmdHelperData->ui32ServerUnfencedUpdateCount++;
@@ -1185,10 +1190,12 @@ PVRSRV_ERROR RGXCmdHelperAcquireCmdCCB(IMG_UINT32 ui32CmdCount,
 			psHeader->ui32CmdSize = psCmdHelperData->ui32FenceCmdSize - sizeof(RGXFWIF_CCB_CMD_HEADER);
 			psHeader->ui32ExtJobRef = psCmdHelperData->ui32ExtJobRef;
 			psHeader->ui32IntJobRef = psCmdHelperData->ui32IntJobRef;
+#if defined(SUPPORT_WORKLOAD_ESTIMATION)
 			psHeader->sWorkloadDataFWAddr.ui32Addr = 0;
 			psHeader->sWorkEstKickData.ui64ReturnDataIndex = 0;
 			psHeader->sWorkEstKickData.ui64DeadlineInus = 0;
 			psHeader->sWorkEstKickData.ui64CyclesPrediction = 0;
+#endif
 
 			pui8CmdPtr += sizeof(RGXFWIF_CCB_CMD_HEADER);
 
@@ -1241,23 +1248,26 @@ PVRSRV_ERROR RGXCmdHelperAcquireCmdCCB(IMG_UINT32 ui32CmdCount,
 			psHeader->ui32CmdSize = psCmdHelperData->ui32DMCmdSize - sizeof(RGXFWIF_CCB_CMD_HEADER);
 			psHeader->ui32ExtJobRef = psCmdHelperData->ui32ExtJobRef;
 			psHeader->ui32IntJobRef = psCmdHelperData->ui32IntJobRef;
-			psHeader->sWorkloadDataFWAddr.ui32Addr = 0;
-			psHeader->sWorkEstKickData.ui64ReturnDataIndex = 0;
-			psHeader->sWorkEstKickData.ui64DeadlineInus = 0;
-			psHeader->sWorkEstKickData.ui64CyclesPrediction = 0;
-
 #if defined(SUPPORT_WORKLOAD_ESTIMATION)
+			psHeader->sWorkloadDataFWAddr.ui32Addr = 0;
+
 			if(psCmdHelperData->psWorkEstKickData != NULL)
 			{
 				PVR_ASSERT(psCmdHelperData->eType == RGXFWIF_CCB_CMD_TYPE_TA ||
 				           psCmdHelperData->eType == RGXFWIF_CCB_CMD_TYPE_3D);
 				psHeader->sWorkEstKickData = *psCmdHelperData->psWorkEstKickData;
 			}
+			else
+			{
+				psHeader->sWorkEstKickData.ui64ReturnDataIndex = 0;
+				psHeader->sWorkEstKickData.ui64DeadlineInus = 0;
+				psHeader->sWorkEstKickData.ui64CyclesPrediction = 0;
+			}
 #endif
 			pui8CmdPtr += sizeof(RGXFWIF_CCB_CMD_HEADER);
 
-
-			OSDeviceMemCopy(pui8CmdPtr, psCmdHelperData->pui8DMCmd, psCmdHelperData->ui32CmdSize);
+			/* The buffer is write-combine, so no special device memory treatment required. */
+			OSCachedMemCopy(pui8CmdPtr, psCmdHelperData->pui8DMCmd, psCmdHelperData->ui32CmdSize);
 			pui8CmdPtr += psCmdHelperData->ui32CmdSize;
 		}
 
@@ -1279,10 +1289,13 @@ PVRSRV_ERROR RGXCmdHelperAcquireCmdCCB(IMG_UINT32 ui32CmdCount,
 			psHeader->ui32CmdSize = psCmdHelperData->ui32RMWUFOCmdSize - sizeof(RGXFWIF_CCB_CMD_HEADER);
 			psHeader->ui32ExtJobRef = psCmdHelperData->ui32ExtJobRef;
 			psHeader->ui32IntJobRef = psCmdHelperData->ui32IntJobRef;
+#if defined(SUPPORT_WORKLOAD_ESTIMATION)
+
 			psHeader->sWorkloadDataFWAddr.ui32Addr = 0;
 			psHeader->sWorkEstKickData.ui64ReturnDataIndex = 0;
 			psHeader->sWorkEstKickData.ui64DeadlineInus = 0;
 			psHeader->sWorkEstKickData.ui64CyclesPrediction = 0;
+#endif
 			pui8CmdPtr += sizeof(RGXFWIF_CCB_CMD_HEADER);
 
 			psUFO = (RGXFWIF_UFO *) pui8CmdPtr;
@@ -1309,10 +1322,12 @@ PVRSRV_ERROR RGXCmdHelperAcquireCmdCCB(IMG_UINT32 ui32CmdCount,
 			psHeader->ui32CmdSize = psCmdHelperData->ui32UpdateCmdSize - sizeof(RGXFWIF_CCB_CMD_HEADER);
 			psHeader->ui32ExtJobRef = psCmdHelperData->ui32ExtJobRef;
 			psHeader->ui32IntJobRef = psCmdHelperData->ui32IntJobRef;
+#if defined(SUPPORT_WORKLOAD_ESTIMATION)
 			psHeader->sWorkloadDataFWAddr.ui32Addr = 0;
 			psHeader->sWorkEstKickData.ui64ReturnDataIndex = 0;
 			psHeader->sWorkEstKickData.ui64DeadlineInus = 0;
 			psHeader->sWorkEstKickData.ui64CyclesPrediction = 0;
+#endif
 			pui8CmdPtr += sizeof(RGXFWIF_CCB_CMD_HEADER);
 
 			/* Fill in the client updates */
@@ -1349,10 +1364,12 @@ PVRSRV_ERROR RGXCmdHelperAcquireCmdCCB(IMG_UINT32 ui32CmdCount,
 			psHeader->ui32CmdSize = psCmdHelperData->ui32UnfencedUpdateCmdSize - sizeof(RGXFWIF_CCB_CMD_HEADER);
 			psHeader->ui32ExtJobRef = psCmdHelperData->ui32ExtJobRef;
 			psHeader->ui32IntJobRef = psCmdHelperData->ui32IntJobRef;
+#if defined(SUPPORT_WORKLOAD_ESTIMATION)
 			psHeader->sWorkloadDataFWAddr.ui32Addr = 0;
 			psHeader->sWorkEstKickData.ui64ReturnDataIndex = 0;
 			psHeader->sWorkEstKickData.ui64DeadlineInus = 0;
 			psHeader->sWorkEstKickData.ui64CyclesPrediction = 0;
+#endif
 
 			/* jump over the header */
 			psCmdHelperData->pui8ServerUnfencedUpdateStart = ((IMG_UINT8*) psHeader) + sizeof(RGXFWIF_CCB_CMD_HEADER);
@@ -1400,6 +1417,10 @@ void RGXCmdHelperReleaseCmdCCB(IMG_UINT32 ui32CmdCount,
 {
 	IMG_UINT32 ui32AllocSize = 0;
 	IMG_UINT32 i;
+#if defined(LINUX)
+	IMG_BOOL bTraceChecks = trace_rogue_are_fence_checks_traced();
+	IMG_BOOL bTraceUpdates = trace_rogue_are_fence_updates_traced();
+#endif
 
 	/*
 		Workout how much space we need for all the command(s)
@@ -1425,9 +1446,10 @@ void RGXCmdHelperReleaseCmdCCB(IMG_UINT32 ui32CmdCount,
 			IMG_UINT32 ui32FenceValue;
 			IMG_UINT32 ui32SyncAddr;
 			PVRSRV_ERROR eError;
-			IMG_BOOL bFence = ((psCmdHelperData->paui32ServerSyncFlags[j] & PVRSRV_CLIENT_SYNC_PRIM_OP_CHECK)!=0)?IMG_TRUE:IMG_FALSE;
-			IMG_BOOL bUpdate = ((psCmdHelperData->paui32ServerSyncFlags[j] & PVRSRV_CLIENT_SYNC_PRIM_OP_UPDATE)!=0)?IMG_TRUE:IMG_FALSE;
-			const IMG_BOOL bUnfencedUpdate = ((psCmdHelperData->paui32ServerSyncFlags[j] & PVRSRV_CLIENT_SYNC_PRIM_OP_UNFENCED_UPDATE) == PVRSRV_CLIENT_SYNC_PRIM_OP_UNFENCED_UPDATE)
+			IMG_UINT32 ui32Flag = psCmdHelperData->paui32ServerSyncFlags[j] & psCmdHelperData->ui32ServerSyncFlagMask;
+			IMG_BOOL bFence = ((ui32Flag & PVRSRV_CLIENT_SYNC_PRIM_OP_CHECK)!=0)?IMG_TRUE:IMG_FALSE;
+			IMG_BOOL bUpdate = ((ui32Flag & PVRSRV_CLIENT_SYNC_PRIM_OP_UPDATE)!=0)?IMG_TRUE:IMG_FALSE;
+			const IMG_BOOL bUnfencedUpdate = ((ui32Flag & PVRSRV_CLIENT_SYNC_PRIM_OP_UNFENCED_UPDATE) == PVRSRV_CLIENT_SYNC_PRIM_OP_UNFENCED_UPDATE)
 				? IMG_TRUE
 				: IMG_FALSE;
 
@@ -1461,13 +1483,16 @@ void RGXCmdHelperReleaseCmdCCB(IMG_UINT32 ui32CmdCount,
 				pui8ServerFenceStart += sizeof(RGXFWIF_UFO);
 
 #if defined(LINUX)
-				trace_rogue_fence_checks(psCmdHelperData->pszCommandName,
-										 pcszDMName,
-										 ui32CtxAddr,
-										 psCmdHelperData->psClientCCB->ui32HostWriteOffset + ui32AllocSize,
-										 1,
-										 &psUFOPtr->puiAddrUFO,
-										 &psUFOPtr->ui32Value);
+				if (bTraceChecks)
+				{
+					trace_rogue_fence_checks(psCmdHelperData->pszCommandName,
+											 pcszDMName,
+											 ui32CtxAddr,
+											 psCmdHelperData->psClientCCB->ui32HostWriteOffset + ui32AllocSize,
+											 1,
+											 &psUFOPtr->puiAddrUFO,
+											 &psUFOPtr->ui32Value);
+				}
 #endif
 			}
 	
@@ -1494,13 +1519,16 @@ void RGXCmdHelperReleaseCmdCCB(IMG_UINT32 ui32CmdCount,
 					pui8ServerUpdateStart += sizeof(RGXFWIF_UFO);
 				}
 #if defined(LINUX)
-				trace_rogue_fence_updates(psCmdHelperData->pszCommandName,
-										  pcszDMName,
-										  ui32CtxAddr,
-										  psCmdHelperData->psClientCCB->ui32HostWriteOffset + ui32AllocSize,
-										  1,
-										  &psUFOPtr->puiAddrUFO,
-										  &psUFOPtr->ui32Value);
+				if (bTraceUpdates)
+				{
+					trace_rogue_fence_updates(psCmdHelperData->pszCommandName,
+											  pcszDMName,
+											  ui32CtxAddr,
+											  psCmdHelperData->psClientCCB->ui32HostWriteOffset + ui32AllocSize,
+											  1,
+											  &psUFOPtr->puiAddrUFO,
+											  &psUFOPtr->ui32Value);
+				}
 #endif
 				
 #if defined(NO_HARDWARE)
@@ -1514,20 +1542,26 @@ void RGXCmdHelperReleaseCmdCCB(IMG_UINT32 ui32CmdCount,
 		}
 
 #if defined(LINUX)
-		trace_rogue_fence_checks(psCmdHelperData->pszCommandName,
-								 pcszDMName,
-								 ui32CtxAddr,
-								 psCmdHelperData->psClientCCB->ui32HostWriteOffset + ui32AllocSize,
-								 psCmdHelperData->ui32ClientFenceCount,
-								 psCmdHelperData->pauiFenceUFOAddress,
-								 psCmdHelperData->paui32FenceValue);
-		trace_rogue_fence_updates(psCmdHelperData->pszCommandName,
-								  pcszDMName,
-								  ui32CtxAddr,
-								  psCmdHelperData->psClientCCB->ui32HostWriteOffset + ui32AllocSize,
-								  psCmdHelperData->ui32ClientUpdateCount,
-								  psCmdHelperData->pauiUpdateUFOAddress,
-								  psCmdHelperData->paui32UpdateValue);
+		if (bTraceChecks)
+		{
+			trace_rogue_fence_checks(psCmdHelperData->pszCommandName,
+									 pcszDMName,
+									 ui32CtxAddr,
+									 psCmdHelperData->psClientCCB->ui32HostWriteOffset + ui32AllocSize,
+									 psCmdHelperData->ui32ClientFenceCount,
+									 psCmdHelperData->pauiFenceUFOAddress,
+									 psCmdHelperData->paui32FenceValue);
+		}
+		if (bTraceUpdates)
+		{
+			trace_rogue_fence_updates(psCmdHelperData->pszCommandName,
+									  pcszDMName,
+									  ui32CtxAddr,
+									  psCmdHelperData->psClientCCB->ui32HostWriteOffset + ui32AllocSize,
+									  psCmdHelperData->ui32ClientUpdateCount,
+									  psCmdHelperData->pauiUpdateUFOAddress,
+									  psCmdHelperData->paui32UpdateValue);
+		}
 #endif
 
 		if (psCmdHelperData->ui32ServerSyncCount)
@@ -1677,7 +1711,7 @@ static const char *_CCBCmdTypename(RGXFWIF_CCB_CMD_TYPE cmdType)
 	return "INVALID";
 }
 
-PVRSRV_ERROR CheckForStalledCCB(RGX_CLIENT_CCB  *psCurrentClientCCB)
+PVRSRV_ERROR CheckForStalledCCB(RGX_CLIENT_CCB  *psCurrentClientCCB, RGX_KICK_TYPE_DM eKickTypeDM)
 {
 	volatile RGXFWIF_CCCB_CTL	*psClientCCBCtrl;
 	IMG_UINT32 					ui32SampledRdOff, ui32SampledWrOff;
@@ -1713,8 +1747,8 @@ PVRSRV_ERROR CheckForStalledCCB(RGX_CLIENT_CCB  *psCurrentClientCCB)
 		 * function will log the stalled condition. Helps avoid double
 		 *  messages in the log.
 		 */
-		PVR_DPF((PVR_DBG_MESSAGE, "CheckForStalledCCB: CCCB has not progressed (ROFF=%d WOFF=%d)",
-				ui32SampledRdOff, ui32SampledWrOff));
+		PVR_DPF((PVR_DBG_WARNING, "CheckForStalledCCB: CCCB has not progressed (ROFF=%d WOFF=%d) for DM: %s",
+				ui32SampledRdOff, ui32SampledWrOff, RGXStringifyKickTypeDM(eKickTypeDM)));
 		eError =  PVRSRV_ERROR_CCCB_STALLED;
 	}
 

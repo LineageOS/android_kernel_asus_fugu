@@ -373,7 +373,7 @@ static void SyncPrimLocalFree(SYNC_PRIM *psSyncInt)
 				psSyncInt->u.sLocal.psSyncBlock->psContext->hDevConnection;
 
 #if defined(PVRSRV_ENABLE_FULL_SYNC_TRACKING)
-		if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_SYNCTRACKING))
+		if(PVRSRVIsBridgeEnabled(hConn, PVRSRV_BRIDGE_SYNCTRACKING))
 		{
 			/* remove this sync record */
 			eError = BridgeSyncRecordRemoveByHandle(hConn,
@@ -793,7 +793,7 @@ static PVRSRV_ERROR _SyncPrimAlloc(PSYNC_PRIM_CONTEXT hSyncPrimContext,
 	_SyncPrimContextRef(psContext);
 
 #if defined(PVRSRV_ENABLE_FULL_SYNC_TRACKING)
-	if(PVRSRVIsBridgeEnabled(PVRSRV_BRIDGE_SYNCTRACKING))
+	if(PVRSRVIsBridgeEnabled(psSyncBlock->psContext->hDevConnection, PVRSRV_BRIDGE_SYNCTRACKING))
 	{
 		IMG_CHAR szClassName[SYNC_MAX_CLASS_NAME_LEN];
 		if(pszClassName)

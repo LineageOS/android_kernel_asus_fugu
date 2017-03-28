@@ -263,28 +263,12 @@ typedef struct _RGXFWIF_HWRTDATA_
 	IMG_UINT32				ui32NumPartialRenders; /*!< Number of partial renders. Used to setup ZLS bits correctly */
 	IMG_DEV_VIRTADDR		RGXFW_ALIGN psPMMListDevVAddr; /*!< MList Data Store */
 
-#if defined(RGX_FEATURE_SCALABLE_TE_ARCH)
 	IMG_UINT64				RGXFW_ALIGN ui64VCECatBase[4];
 	IMG_UINT64				RGXFW_ALIGN ui64VCELastCatBase[4];
 	IMG_UINT64				RGXFW_ALIGN ui64TECatBase[4];
 	IMG_UINT64				RGXFW_ALIGN ui64TELastCatBase[4];
 	IMG_UINT64				RGXFW_ALIGN ui64AlistCatBase;
 	IMG_UINT64				RGXFW_ALIGN ui64AlistLastCatBase;
-#elif defined(RGX_FEATURE_CLUSTER_GROUPING)
-	IMG_UINT64				RGXFW_ALIGN ui64VCECatBase;
-	IMG_UINT64				RGXFW_ALIGN ui64VCELastCatBase;
-	IMG_UINT64				RGXFW_ALIGN ui64TECatBase;
-	IMG_UINT64				RGXFW_ALIGN ui64TELastCatBase;
-	IMG_UINT64				RGXFW_ALIGN ui64AlistCatBase;
-	IMG_UINT64				RGXFW_ALIGN ui64AlistLastCatBase;
-#else
-	IMG_UINT64				RGXFW_ALIGN ui64VCECatBase;
-	IMG_UINT64				RGXFW_ALIGN ui64TECatBase;
-	IMG_UINT64				RGXFW_ALIGN ui64AlistCatBase;
-	IMG_UINT64				RGXFW_ALIGN ui64Unused1;
-	IMG_UINT64				RGXFW_ALIGN ui64Unused2;
-	IMG_UINT64				RGXFW_ALIGN ui64Unused3;
-#endif
 
 #if defined(SUPPORT_VFP)
 	IMG_DEV_VIRTADDR		RGXFW_ALIGN sVFPPageTableAddr;

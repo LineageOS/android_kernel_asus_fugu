@@ -3453,7 +3453,7 @@ PVRSRV_ERROR RGXScheduleCommand(PVRSRV_RGXDEV_INFO 	*psDevInfo,
 	}
 #endif
 
-	eError = RGXPreKickCacheCommand(psDevInfo, eKCCBType, &uiMMUSyncUpdate);
+	eError = RGXPreKickCacheCommand(psDevInfo, eKCCBType, &uiMMUSyncUpdate, IMG_FALSE);
 	if (eError != PVRSRV_OK) goto RGXScheduleCommand_exit;
 
 	eError = RGXSendCommandWithPowLock(psDevInfo, eKCCBType, psKCCBCmd, ui32CmdSize, ui32PDumpFlags);
@@ -4778,59 +4778,48 @@ PVRSRV_ERROR RGXUpdateHealthStatus(PVRSRV_DEVICE_NODE* psDevNode,
 
 	if (bCheckAfterTimePassed && (PVRSRV_DEVICE_HEALTH_STATUS_OK==eNewStatus))
 	{
-		/* Attempt to detect and deal with any stalled client contexts */
-		IMG_BOOL bStalledClient = IMG_FALSE;
-		if (CheckForStalledClientTransferCtxt(psDevInfo))
-		{
-			PVR_DPF((PVR_DBG_WARNING, "RGXGetDeviceHealthStatus: Detected stalled client transfer context"));
-			bStalledClient = IMG_TRUE;
-		}
-		if (CheckForStalledClientRenderCtxt(psDevInfo))
-		{
-			PVR_DPF((PVR_DBG_WARNING, "RGXGetDeviceHealthStatus: Detected stalled client render context"));
-			bStalledClient = IMG_TRUE;
-		}
+		/* Attempt to detect and deal with any stalled client contexts.
+		 * Currently, ui32StalledClientMask is not a reliable method of detecting a stalled
+		 * application as the app could just be busy with a long running task,
+		 * or a lots of smaller workloads. Also the definition of stalled is
+		 * effectively subject to the timer frequency calling this function
+		 * (which is a platform config value with no guarantee it is correctly tuned).
+		 */
+
+		IMG_UINT32 ui32StalledClientMask = 0;
+
+		ui32StalledClientMask |= CheckForStalledClientTransferCtxt(psDevInfo);
+
+		ui32StalledClientMask |= CheckForStalledClientRenderCtxt(psDevInfo);
+
 #if	!defined(UNDER_WDDM)
 		if(psDevInfo->sDevFeatureCfg.ui64Features & RGX_FEATURE_COMPUTE_BIT_MASK)
 		{
-			if (CheckForStalledClientComputeCtxt(psDevInfo))
-			{
-				PVR_DPF((PVR_DBG_WARNING, "RGXGetDeviceHealthStatus: Detected stalled client compute context"));
-				bStalledClient = IMG_TRUE;
-			}
+			ui32StalledClientMask |= CheckForStalledClientComputeCtxt(psDevInfo);
 		}
 #endif
 
-		if(psDevInfo->sDevFeatureCfg.ui64Features & RGX_FEATURE_RAY_TRACING_BIT_MASK)
+		if (psDevInfo->sDevFeatureCfg.ui64Features & RGX_FEATURE_RAY_TRACING_BIT_MASK)
 		{
-			if (CheckForStalledClientRayCtxt(psDevInfo))
-			{
-				PVR_DPF((PVR_DBG_WARNING, "RGXGetDeviceHealthStatus: Detected stalled client raytrace context"));
-				bStalledClient = IMG_TRUE;
-			}
+			ui32StalledClientMask |= CheckForStalledClientRayCtxt(psDevInfo);
 		}
-
-		/* try the unblock routines only on the transition from OK to stalled */
-		if (!psDevInfo->bStalledClient && bStalledClient)
+        
+		/* If at least one DM stalled bit is different than before */
+		if (psDevInfo->ui32StalledClientMask ^ ui32StalledClientMask)
 		{
-#if defined(SUPPORT_DISPLAY_CLASS)
-			/*
-			 * Call to DCDisplayContextFlush() disabled as bStalledClient is not a
-			 * reliable method of detecting a stalled application as the app could
-			 * just be busy with a long running task, or a lots of smaller workloads.
-			 * Also the definition of stalled is effectively subject to the timer
-			 * frequency calling this function (which is a platform config value
-			 * with no guarantee it is correctly tuned).
-			 *
-			 * Combined with the fact that DCDisplayContextFlush() will ignore host
-			 * sync fence checks in order to flush the context, there is significant
-			 * risk of lockup if you perform it when the app is not actually stalled
-			 * due to DC related sync deadlock.
-			 */
-			//DCDisplayContextFlush();
-#endif
+			/* Print all the stalled DMs */
+			PVR_LOG(("RGXGetDeviceHealthStatus: Possible stalled client contexts detected: %s%s%s%s%s%s%s%s%s",
+			         RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(ui32StalledClientMask, RGX_KICK_TYPE_DM_GP), 
+			         RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(ui32StalledClientMask, RGX_KICK_TYPE_DM_TDM_2D), 
+			         RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(ui32StalledClientMask, RGX_KICK_TYPE_DM_TA), 
+			         RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(ui32StalledClientMask, RGX_KICK_TYPE_DM_3D), 
+			         RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(ui32StalledClientMask, RGX_KICK_TYPE_DM_CDM), 
+			         RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(ui32StalledClientMask, RGX_KICK_TYPE_DM_RTU), 
+			         RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(ui32StalledClientMask, RGX_KICK_TYPE_DM_SHG), 
+			         RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(ui32StalledClientMask, RGX_KICK_TYPE_DM_TQ2D), 
+			         RGX_STRINGIFY_KICK_TYPE_DM_IF_SET(ui32StalledClientMask, RGX_KICK_TYPE_DM_TQ3D))); 
 		}
-		psDevInfo->bStalledClient = bStalledClient;
+		psDevInfo->ui32StalledClientMask = ui32StalledClientMask;
 	}
 
 	/*
@@ -4859,11 +4848,11 @@ _RGXUpdateHealthStatus_Exit:
 	return PVRSRV_OK;
 } /* RGXUpdateHealthStatus */
 
-PVRSRV_ERROR CheckStalledClientCommonContext(RGX_SERVER_COMMON_CONTEXT *psCurrentServerCommonContext)
+PVRSRV_ERROR CheckStalledClientCommonContext(RGX_SERVER_COMMON_CONTEXT *psCurrentServerCommonContext, RGX_KICK_TYPE_DM eKickTypeDM)
 {
 	RGX_CLIENT_CCB 	*psCurrentClientCCB = psCurrentServerCommonContext->psClientCCB;
 
-	return CheckForStalledCCB(psCurrentClientCCB);
+	return CheckForStalledCCB(psCurrentClientCCB, eKickTypeDM);
 }
 
 void DumpStalledFWCommonContext(RGX_SERVER_COMMON_CONTEXT *psCurrentServerCommonContext,

@@ -97,7 +97,7 @@ struct _RGXFW_HWPERF_CNTBLK_TYPE_MODEL_
 	IMG_UINT8  uiSelectRegOffsetShift; /* Interval between select registers, either 8 bytes or 16, hence << 3 or << 4 */
 	IMG_CHAR   pszBlockNameComment[30];              /* Name of the PERF register. Used while dumping the perf counters to pdumps */
 	PFN_RGXFW_HWPERF_CNTBLK_POWERED pfnIsBlkPowered; /* A function to determine dynamic power state for the block type */
-	PFN_RGXFW_HWPERF_CNTBLK_PRESENT pfnIsBlkPresent; /* A function to determiner presence on RGX Device at run-time */
+	PFN_RGXFW_HWPERF_CNTBLK_PRESENT pfnIsBlkPresent; /* A function to determine presence on RGX Device at run-time */
 };
 
 /*****************************************************************************/
@@ -110,4 +110,3 @@ IMG_INTERNAL IMG_UINT32 RGXGetHWPerfBlockConfig(const RGXFW_HWPERF_CNTBLK_TYPE_M
 /******************************************************************************
  End of file (rgx_hwperf_table.h)
 ******************************************************************************/
-

@@ -1026,6 +1026,7 @@ static INLINE PVRSRV_ERROR CacheOpCleanup(DLLIST_NODE *psListNode)
 		psCacheOpCleanupItem->sCleanupWorkItem.ui32RetryCount = 0;
 		psCacheOpCleanupItem->sCleanupWorkItem.pfnFree = CacheOpFree;
 		psCacheOpCleanupItem->sCleanupWorkItem.pvData = psCacheOpCleanupItem;
+		psCacheOpCleanupItem->sCleanupWorkItem.bDependsOnHW = IMG_FALSE;
 		PVRSRVCleanupThreadAddWork(&psCacheOpCleanupItem->sCleanupWorkItem);
 	}
 
@@ -1714,7 +1715,7 @@ PVRSRV_ERROR CacheOpQueue (IMG_UINT32 ui32NumCacheOps,
 	for (ui32Idx = 0; ui32Idx < ui32NumCacheOps; ui32Idx++)
 	{
 		uiCacheOp = SetCacheOp(uiCacheOp, puiCacheOp[ui32Idx]);
-		if (uiCacheOp == PVRSRV_CACHE_OP_INVALIDATE)
+		if (puiCacheOp[ui32Idx] == PVRSRV_CACHE_OP_INVALIDATE)
 		{
 			/* Cannot be deferred, action now */
 			bHasInvalidate = IMG_TRUE;

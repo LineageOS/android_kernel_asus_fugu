@@ -68,7 +68,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  RGXFW_HWPERF_CNTBLK_TYPE_MODEL struct PFNs pfnIsBlkPowered()
 
  Referenced in gasCntBlkTypeModel[] table below and only called from
- RGX_FIRMWEARE run-time context. Therefore compile time configuration is used.
+ RGX_FIRMWARE run-time context. Therefore compile time configuration is used.
  *****************************************************************************/
 
 #if defined(RGX_FIRMWARE) && defined(RGX_FEATURE_PERFBUS)
@@ -79,7 +79,7 @@ static IMG_BOOL rgxfw_hwperf_pow_st_direct(RGX_HWPERF_CNTBLK_ID eBlkType, IMG_UI
 {
 	PVR_UNREFERENCED_PARAMETER(eBlkType);
 	PVR_UNREFERENCED_PARAMETER(ui8UnitId);
-	
+
 #if defined(RGX_FEATURE_S7_TOP_INFRASTRUCTURE)
 	/* S7XT: JONES */
 	return (eBlkType == RGX_CNTBLK_ID_JONES) ? IMG_TRUE : IMG_FALSE;
@@ -186,7 +186,7 @@ static IMG_BOOL rgxfw_hwperf_pow_st_gandalf(RGX_HWPERF_CNTBLK_ID eBlkType, IMG_U
 
  Referenced in gasCntBlkTypeModel[] table below and called from all build
  contexts:
- RGX_FIRMWEARE, PVRSRVCTL (UM) and PVRSRVKM (Server).
+ RGX_FIRMWARE, PVRSRVCTL (UM) and PVRSRVKM (Server).
 
  Therefore each function has two implementations, one for compile time and one
  run time configuration depending on the context. The functions will inform the
@@ -201,7 +201,7 @@ static IMG_BOOL rgx_hwperf_blk_present_perfbus(const RGXFW_HWPERF_CNTBLK_TYPE_MO
 	DBG_ASSERT(psRtInfo != NULL);
 	DBG_ASSERT(psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_USC0);
 
-#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server ctx */
+#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server context */
 	PVR_ASSERT(pvDev_km != NULL);
 	{
 		PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)pvDev_km;
@@ -213,7 +213,7 @@ static IMG_BOOL rgx_hwperf_blk_present_perfbus(const RGXFW_HWPERF_CNTBLK_TYPE_MO
 		}
 	}
     PVR_UNREFERENCED_PARAMETER(psBlkTypeDesc);
-#else /* FW or Client ctx */
+#else /* FW or Client context */
 	PVR_UNREFERENCED_PARAMETER(pvDev_km);
 # if defined(RGX_FEATURE_PERFBUS)
 	psRtInfo->uiBitSelectPreserveMask = 0x0000;
@@ -235,7 +235,7 @@ static IMG_BOOL rgx_hwperf_blk_present_not_clustergrouping(const RGXFW_HWPERF_CN
 	DBG_ASSERT((psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_RASTER) ||
 		(psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_HUB));
 
-#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server ctx */
+#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server context */
 	PVR_ASSERT(pvDev_km != NULL);
 	{
 		PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)pvDev_km;
@@ -255,7 +255,7 @@ static IMG_BOOL rgx_hwperf_blk_present_not_clustergrouping(const RGXFW_HWPERF_CN
 			return IMG_TRUE;
 		}
 	}
-#else /* FW or Client ctx */
+#else /* FW or Client context */
 	PVR_UNREFERENCED_PARAMETER(pvDev_km);
 # if !defined(RGX_FEATURE_CLUSTER_GROUPING) && defined(RGX_FEATURE_PERFBUS)
 	psRtInfo->uiNumUnits = 1;
@@ -290,7 +290,7 @@ static IMG_BOOL rgx_hwperf_blk_present_raytracing(const RGXFW_HWPERF_CNTBLK_TYPE
 		(psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_SH) ||
 		(psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_BX_TU0));
 
-#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server ctx */
+#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server context */
 	PVR_ASSERT(pvDev_km != NULL);
 	{
 		PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)pvDev_km;
@@ -301,7 +301,7 @@ static IMG_BOOL rgx_hwperf_blk_present_raytracing(const RGXFW_HWPERF_CNTBLK_TYPE
 			return IMG_TRUE;
 		}
 	}
-#else /* FW or Client ctx */
+#else /* FW or Client context */
 	PVR_UNREFERENCED_PARAMETER(pvDev_km);
 # if defined(RGX_FEATURE_RAY_TRACING)
 	psRtInfo->uiBitSelectPreserveMask = 0x0000;
@@ -316,7 +316,7 @@ static IMG_BOOL rgx_hwperf_blk_present_raytracing(const RGXFW_HWPERF_CNTBLK_TYPE
 	return IMG_FALSE;
 }
 
-#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server ctx */
+#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server context */
 static INLINE IMG_UINT32 rgx_units_indirect_by_phantom(PVRSRV_DEVICE_FEATURE_CONFIG *psFeatCfg)
 {
 	/* Run-time math for RGX_HWPERF_INDIRECT_BY_PHANTOM */
@@ -346,7 +346,7 @@ static IMG_BOOL rgx_hwperf_blk_present_xttop(const RGXFW_HWPERF_CNTBLK_TYPE_MODE
 		(psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_TEXAS0) ||
 		(psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_RASTER0));
 
-#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server ctx */
+#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server context */
 	PVR_ASSERT(pvDev_km != NULL);
 	{
 		PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)pvDev_km;
@@ -359,7 +359,7 @@ static IMG_BOOL rgx_hwperf_blk_present_xttop(const RGXFW_HWPERF_CNTBLK_TYPE_MODE
 			return IMG_TRUE;
 		}
 	}
-#else /* FW or Client ctx */
+#else /* FW or Client context */
 	PVR_UNREFERENCED_PARAMETER(pvDev_km);
 # if defined(RGX_FEATURE_XT_TOP_INFRASTRUCTURE) && defined(RGX_FEATURE_PERFBUS)
 	psRtInfo->uiBitSelectPreserveMask = 0x0000;
@@ -384,7 +384,7 @@ static IMG_BOOL rgx_hwperf_blk_present_s7top(const RGXFW_HWPERF_CNTBLK_TYPE_MODE
 		(psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_BLACKPEARL0) ||
 		(psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_PBE0));
 
-#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server ctx */
+#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server context */
 	PVR_ASSERT(pvDev_km != NULL);
 	{
 		PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)pvDev_km;
@@ -424,7 +424,7 @@ static IMG_BOOL rgx_hwperf_blk_present_s7top(const RGXFW_HWPERF_CNTBLK_TYPE_MODE
 			}
 		}
 	}
-#else /* FW or Client ctx */
+#else /* FW or Client context */
 	PVR_UNREFERENCED_PARAMETER(pvDev_km);
 # if defined(RGX_FEATURE_S7_TOP_INFRASTRUCTURE)
 	psRtInfo->uiNumUnits = psBlkTypeDesc->uiNumUnits;
@@ -455,7 +455,7 @@ static IMG_BOOL rgx_hwperf_blk_present_not_s7top(const RGXFW_HWPERF_CNTBLK_TYPE_
 	DBG_ASSERT((psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_TA) ||
 		(psBlkTypeDesc->uiCntBlkIdBase == RGX_CNTBLK_ID_TPU_MCU0));
 
-#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server ctx */
+#if defined(SUPPORT_KERNEL_SRVINIT) && defined(__KERNEL__) /* Server context */
 	PVR_ASSERT(pvDev_km != NULL);
 	{
 		PVRSRV_RGXDEV_INFO *psDevInfo = (PVRSRV_RGXDEV_INFO *)pvDev_km;
@@ -476,7 +476,7 @@ static IMG_BOOL rgx_hwperf_blk_present_not_s7top(const RGXFW_HWPERF_CNTBLK_TYPE_
 			return IMG_TRUE;
 		}
 	}
-#else /* FW or Client ctx */
+#else /* FW or Client context */
 	PVR_UNREFERENCED_PARAMETER(pvDev_km);
 # if !defined(RGX_FEATURE_S7_TOP_INFRASTRUCTURE) && defined(RGX_FEATURE_PERFBUS)
 	psRtInfo->uiNumUnits = psBlkTypeDesc->uiNumUnits;
@@ -499,15 +499,14 @@ static IMG_BOOL rgx_hwperf_blk_present_not_s7top(const RGXFW_HWPERF_CNTBLK_TYPE_
 	return IMG_FALSE;
 }
 
-#if !defined(__KERNEL__) /* Firmware or User-mode ctx */
+#if !defined(__KERNEL__) /* Firmware or User-mode context */
 static IMG_BOOL rgx_hwperf_blk_present_false(const RGXFW_HWPERF_CNTBLK_TYPE_MODEL* psBlkTypeDesc, void *pvDev_km, RGX_HWPERF_CNTBLK_RT_INFO *psRtInfo)
 {
 	PVR_UNREFERENCED_PARAMETER(psBlkTypeDesc);
 	PVR_UNREFERENCED_PARAMETER(pvDev_km);
 	PVR_UNREFERENCED_PARAMETER(psRtInfo);
 
-	/* Some functions not used on some BVNCs, this can be removed once all
-	 * cr_def macros are defined in UM. */
+	/* Some functions not used on some BVNCs, silence compiler warnings */
 	PVR_UNREFERENCED_PARAMETER(rgx_hwperf_blk_present_perfbus);
 	PVR_UNREFERENCED_PARAMETER(rgx_hwperf_blk_present_not_clustergrouping);
 	PVR_UNREFERENCED_PARAMETER(rgx_hwperf_blk_present_raytracing);
@@ -534,7 +533,7 @@ static IMG_BOOL rgx_hwperf_blk_present_false(const RGXFW_HWPERF_CNTBLK_TYPE_MODE
 /*****************************************************************************
  RGXFW_HWPERF_CNTBLK_TYPE_MODEL gasCntBlkTypeModel[] table
 
- This tables holds the entries for the performance counter block type model.
+ This table holds the entries for the performance counter block type model.
  Where the block is not present on an RGX device in question the ()
  pfnIsBlkPresent() returns false, if valid and present it returns true.
  Columns in the table with a ** indicate the value is a default and the

@@ -66,6 +66,31 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pvr_dvfs_device.h"
 #endif
 
+static PVRSRV_ERROR RGXFWNotifyHostTimeout(PVRSRV_RGXDEV_INFO *psDevInfo)
+{
+	PVRSRV_ERROR     eError;
+	RGXFWIF_KCCB_CMD sCmd;
+	RGXFWIF_RUNTIME_CFG	*psRuntimeCfg = psDevInfo->psRGXFWIfRuntimeCfg;
+
+	/* Send the Timeout notification to the FW */
+	/* Extending the APM Latency Change command structure with the notification boolean for 
+	   backwards compatibility reasons */
+	sCmd.eCmdType = RGXFWIF_KCCB_CMD_POW;
+	sCmd.uCmdData.sPowData.ePowType = RGXFWIF_POW_APM_LATENCY_CHANGE;
+	sCmd.uCmdData.sPowData.uPoweReqData.ui32ActivePMLatencyms = psRuntimeCfg->ui32ActivePMLatencyms;
+	sCmd.uCmdData.sPowData.bNotifyTimeout = IMG_TRUE;
+
+	/* Ensure the new APM latency is written to memory before requesting the FW to read it */
+	OSMemoryBarrier();
+
+	eError = RGXSendCommand(psDevInfo,
+	                        RGXFWIF_DM_GP,
+	                        &sCmd,
+	                        sizeof(sCmd),
+	                        PDUMP_FLAGS_NONE);
+
+	return eError;
+}
 
 static void _RGXUpdateGPUUtilStats(PVRSRV_RGXDEV_INFO *psDevInfo)
 {
@@ -635,6 +660,7 @@ PVRSRV_ERROR RGXAPMLatencyChange(IMG_HANDLE				hDevHandle,
 	{
 		RGXFWIF_KCCB_CMD	sActivePMLatencyChange;
 		sActivePMLatencyChange.eCmdType = RGXFWIF_KCCB_CMD_POW;
+		sActivePMLatencyChange.uCmdData.sPowData.bNotifyTimeout = IMG_FALSE;
 		sActivePMLatencyChange.uCmdData.sPowData.ePowType = RGXFWIF_POW_APM_LATENCY_CHANGE;
 		sActivePMLatencyChange.uCmdData.sPowData.uPoweReqData.ui32ActivePMLatencyms = ui32ActivePMLatencyms;
 
@@ -792,6 +818,7 @@ PVRSRV_ERROR RGXForcedIdleRequest(IMG_HANDLE hDevHandle, IMG_BOOL bDeviceOffPerm
 
 	if (eError != PVRSRV_OK)
 	{
+		RGXFWNotifyHostTimeout(psDevInfo);
 		PVR_DPF((PVR_DBG_ERROR,"RGXForcedIdleRequest: Idle request failed. Firmware potentially left in forced idle state"));
 		return eError;
 	}

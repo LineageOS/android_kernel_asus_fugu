@@ -394,6 +394,7 @@ PVRSRV_ERROR PVRSRVRGXKickCDMKM(RGX_SERVER_COMPUTE_CONTEXT	*psComputeContext,
 	                                paui32ClientUpdateValue,
 	                                ui32ServerSyncPrims,
 	                                paui32ServerSyncFlags,
+	                                SYNC_FLAG_MASK_ALL,
 	                                pasServerSyncs,
 	                                ui32CmdSize,
 	                                pui8DMCmd,
@@ -682,9 +683,9 @@ void CheckForStalledComputeCtxt(PVRSRV_RGXDEV_INFO *psDevInfo,
 	OSWRLockReleaseRead(psDevInfo->hComputeCtxListLock);
 }
 
-IMG_BOOL CheckForStalledClientComputeCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
+IMG_UINT32 CheckForStalledClientComputeCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
 {
-	PVRSRV_ERROR eError = PVRSRV_OK;
+	IMG_UINT32 ui32ContextBitMask = 0;
 	DLLIST_NODE *psNode, *psNext;
 	OSWRLockAcquireRead(psDevInfo->hComputeCtxListLock);
 	dllist_foreach_node(&psDevInfo->sComputeCtxtListHead, psNode, psNext)
@@ -692,14 +693,14 @@ IMG_BOOL CheckForStalledClientComputeCtxt(PVRSRV_RGXDEV_INFO *psDevInfo)
 		RGX_SERVER_COMPUTE_CONTEXT *psCurrentServerComputeCtx =
 			IMG_CONTAINER_OF(psNode, RGX_SERVER_COMPUTE_CONTEXT, sListNode);
 
-		if (CheckStalledClientCommonContext(psCurrentServerComputeCtx->psServerCommonContext)
+		if (CheckStalledClientCommonContext(psCurrentServerComputeCtx->psServerCommonContext, RGX_KICK_TYPE_DM_CDM)
 			== PVRSRV_ERROR_CCCB_STALLED)
 		{
-			eError = PVRSRV_ERROR_CCCB_STALLED;
+			ui32ContextBitMask |= RGX_KICK_TYPE_DM_CDM;
 		}
 	}
 	OSWRLockReleaseRead(psDevInfo->hComputeCtxListLock);
-	return (PVRSRV_ERROR_CCCB_STALLED == eError)? IMG_TRUE: IMG_FALSE;
+	return ui32ContextBitMask;
 }
 
 /******************************************************************************

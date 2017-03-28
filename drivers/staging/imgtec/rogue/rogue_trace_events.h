@@ -62,7 +62,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 		rem = do_div(t, USEC_PER_SEC); \
 	})
 
-TRACE_EVENT(rogue_fence_update,
+void trace_fence_update_enabled_callback(void);
+void trace_fence_update_disabled_callback(void);
+
+TRACE_EVENT_FN(rogue_fence_update,
 
 	TP_PROTO(const char *comm, const char *cmd, const char *dm, u32 ctx_id, u32 offset,
 		u32 sync_fwaddr, u32 sync_value),
@@ -96,10 +99,16 @@ TRACE_EVENT(rogue_fence_update,
 		(unsigned long)__entry->ctx_id,
 		(unsigned long)__entry->offset,
 		(unsigned long)__entry->sync_fwaddr,
-		(unsigned long)__entry->sync_value)
+		(unsigned long)__entry->sync_value),
+
+	trace_fence_update_enabled_callback,
+	trace_fence_update_disabled_callback
 );
 
-TRACE_EVENT(rogue_fence_check,
+void trace_fence_check_enabled_callback(void);
+void trace_fence_check_disabled_callback(void);
+
+TRACE_EVENT_FN(rogue_fence_check,
 
 	TP_PROTO(const char *comm, const char *cmd, const char *dm, u32 ctx_id, u32 offset,
 		u32 sync_fwaddr, u32 sync_value),
@@ -133,7 +142,10 @@ TRACE_EVENT(rogue_fence_check,
 		(unsigned long)__entry->ctx_id,
 		(unsigned long)__entry->offset,
 		(unsigned long)__entry->sync_fwaddr,
-		(unsigned long)__entry->sync_value)
+		(unsigned long)__entry->sync_value),
+
+	trace_fence_check_enabled_callback,
+	trace_fence_check_disabled_callback
 );
 
 TRACE_EVENT(rogue_create_fw_context,

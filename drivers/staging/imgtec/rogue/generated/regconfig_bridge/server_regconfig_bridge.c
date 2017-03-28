@@ -95,6 +95,7 @@ PVRSRVBridgeRGXSetRegConfigType(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+
 	return 0;
 }
 
@@ -118,6 +119,7 @@ PVRSRVBridgeRGXAddRegconfig(IMG_UINT32 ui32DispatchTableEntry,
 					psRGXAddRegconfigIN->ui32RegAddr,
 					psRGXAddRegconfigIN->ui64RegValue,
 					psRGXAddRegconfigIN->ui64RegMask);
+
 
 
 
@@ -154,6 +156,7 @@ PVRSRVBridgeRGXClearRegConfig(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+
 	return 0;
 }
 
@@ -183,6 +186,7 @@ PVRSRVBridgeRGXEnableRegConfig(IMG_UINT32 ui32DispatchTableEntry,
 
 
 
+
 	return 0;
 }
 
@@ -205,6 +209,7 @@ PVRSRVBridgeRGXDisableRegConfig(IMG_UINT32 ui32DispatchTableEntry,
 	psRGXDisableRegConfigOUT->eError =
 		PVRSRVRGXDisableRegConfigKM(psConnection, OSGetDevData(psConnection)
 					);
+
 
 
 

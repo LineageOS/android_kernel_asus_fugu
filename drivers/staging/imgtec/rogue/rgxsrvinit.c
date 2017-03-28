@@ -141,6 +141,12 @@ static SRV_INIT_PARAM_UINT32_LOOKUP fwt_logtype_tbl[] = {
 	{ "none", 0}
 };
 
+static SRV_INIT_PARAM_UINT32_LOOKUP timecorr_clk_tbl[] = {
+	{ "mono", 0 },
+	{ "mono_raw", 1 },
+	{ "sched", 2 }
+};
+
 static SRV_INIT_PARAM_UINT32_LOOKUP fwt_loggroup_tbl[] = { RGXFWIF_LOG_GROUP_NAME_VALUE_MAP };
 
 /*
@@ -185,6 +191,7 @@ typedef struct _RGX_SRVINIT_APPHINTS_
 	IMG_UINT32 ui32HWPerfFilter0;
 	IMG_UINT32 ui32HWPerfFilter1;
 	IMG_UINT32 ui32HWPerfHostFilter;
+	IMG_UINT32 ui32TimeCorrClock;
 	IMG_UINT32 ui32HWRDebugDumpLimit;
 	IMG_UINT32 ui32JonesDisableMask;
 	IMG_UINT32 ui32LogType;
@@ -290,6 +297,7 @@ static INLINE void GetApphints(RGX_SRVINIT_APPHINTS *psHints, IMG_UINT64 ui64Ern
 	SrvInitParamUnreferenced(WatchdogThreadPriority);
 	SrvInitParamUnreferenced(CleanupThreadWeight);
 	SrvInitParamUnreferenced(CleanupThreadPriority);
+	SrvInitParamUnreferenced(RGXBVNC);
 #endif
 
 	/*
@@ -340,8 +348,10 @@ static INLINE void GetApphints(RGX_SRVINIT_APPHINTS *psHints, IMG_UINT64 ui64Ern
 	SrvInitParamGetUINT32(pvParamState,  HWPerfFilter1, psHints->ui32HWPerfFilter1);
 	SrvInitParamUnreferenced(DisablePDumpPanic);
 	SrvInitParamUnreferenced(HWPerfFWFilter);
+	SrvInitParamUnreferenced(RGXBVNC);
 #endif
 	SrvInitParamGetUINT32(pvParamState,  HWPerfHostFilter, psHints->ui32HWPerfHostFilter);
+	SrvInitParamGetUINT32List(pvParamState,  TimeCorrClock, psHints->ui32TimeCorrClock);
 	SrvInitParamGetUINT32(pvParamState,  HWRDebugDumpLimit, ui32ParamTemp);
 	psHints->ui32HWRDebugDumpLimit = MIN(ui32ParamTemp, RGXFWIF_HWR_DEBUG_DUMP_ALL);
 

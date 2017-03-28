@@ -117,7 +117,7 @@ void CheckForStalledTDMTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo,
 					void *pvDumpDebugFile);
 
 /* Debug/Watchdog - check if client transfer contexts are stalled */
-IMG_BOOL CheckForStalledClientTDMTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo);
+IMG_UINT32 CheckForStalledClientTDMTransferCtxt(PVRSRV_RGXDEV_INFO *psDevInfo);
 
 
 #endif /* __RGXTDMTRANSFER_H__ */

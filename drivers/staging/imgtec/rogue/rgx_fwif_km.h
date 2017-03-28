@@ -370,6 +370,8 @@ typedef struct _RGXFWIF_CCB_CTL_
 #define RGXFWIF_MMUCACHEDATA_FLAGS_CTX_ALL (0x800) /* MMU_CTRL_INVAL_ALL_CONTEXTS_EN */
 #endif
 
+#define RGXFWIF_MMUCACHEDATA_FLAGS_INTERRUPT (0x4000000) /* indicates FW should interrupt the host */
+
 typedef struct _RGXFWIF_MMUCACHEDATA_
 {
 	PRGXFWIF_FWMEMCONTEXT		psMemoryContext;
@@ -469,6 +471,8 @@ typedef struct _RGXFWIF_POWER_REQUEST_
 		IMG_BOOL					bCancelForcedIdle;		/*!< If the operation is to cancel previously forced idle */
 		IMG_UINT32					ui32ActivePMLatencyms;		/*!< Number of milliseconds to set APM latency */
 	} uPoweReqData;
+	IMG_BOOL						bNotifyTimeout;			/*!< Notify the FW that the host has timed out waiting for a response to an idling.
+															     It's placed here as an extension of the struct for backwards compatibility reasons */
 } RGXFWIF_POWER_REQUEST;
 
 typedef struct _RGXFWIF_SLCFLUSHINVALDATA_

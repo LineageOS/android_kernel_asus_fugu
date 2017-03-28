@@ -222,6 +222,9 @@ PVRSRV_ERROR RGXMMUInit_Register(PVRSRV_DEVICE_NODE *psDeviceNode)
      */
     
 	
+	sRGXMMUDeviceAttributes.pszMMUPxPDumpMemSpaceName =
+		PhysHeapPDumpMemspaceName(psDeviceNode->apsPhysHeap[PVRSRV_DEVICE_PHYS_HEAP_GPU_LOCAL]);
+
 	/*
 	 * Setup sRGXMMUPCEConfig
 	 */

@@ -200,6 +200,8 @@ typedef enum _RGXFWIF_POW_STATE_
 #define RGXFWIF_HWR_HARDWARE_OK		(0x1 << 0)	/*!< Tells if the HW state is ok or locked up */
 #define RGXFWIF_HWR_ANALYSIS_DONE	(0x1 << 2)	/*!< Tells if the analysis of a GPU lockup has already been performed */
 #define RGXFWIF_HWR_GENERAL_LOCKUP	(0x1 << 3)	/*!< Tells if a DM unrelated lockup has been detected */
+#define RGXFWIF_HWR_DM_RUNNING_OK	(0x1 << 4)	/*!< Tells if at least one DM is running without being close to a lockup */
+#define RGXFWIF_HWR_DM_STALLING		(0x1 << 5)	/*!< Tells if at least one DM is close to lockup */
 typedef IMG_UINT32 RGXFWIF_HWR_STATEFLAGS;
 
 /* Firmware per-DM HWR states */

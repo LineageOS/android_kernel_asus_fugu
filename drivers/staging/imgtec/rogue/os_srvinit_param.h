@@ -58,6 +58,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define	SrvInitParamGetUINT64(state, name, value) \
 	pvr_apphint_get_uint64(APPHINT_ID_ ## name, &value)
 
+#define SrvInitParamGetSTRING(state, name, buffer, size) \
+	pvr_apphint_get_string(APPHINT_ID_ ## name, buffer, size)
+
 #define	SrvInitParamGetUINT32BitField(state, name, value) \
 	pvr_apphint_get_uint32(APPHINT_ID_ ## name, &value)
 
