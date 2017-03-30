@@ -79,7 +79,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* This will need to be changed if the non-secure builds reach this amount of pages */
 #define RGXMIPSFW_CODE_NUMPAGES                  (62)
 #else
-#define RGXMIPSFW_CODE_NUMPAGES                  (38)
+#define RGXMIPSFW_CODE_NUMPAGES                  (40)
 #endif
 #define RGXMIPSFW_CODE_SIZE                      (RGXMIPSFW_CODE_NUMPAGES << RGXMIPSFW_LOG2_PAGE_SIZE)
 

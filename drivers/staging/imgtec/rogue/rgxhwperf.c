@@ -73,10 +73,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /* Defined to ensure HWPerf packets are not delayed */
 #define SUPPORT_TL_PROODUCER_CALLBACK 1
 
+/* Defines size of buffers returned from acquire/release calls */
+#define FW_STREAM_BUFFER_SIZE (0x80000)
+#define HOST_STREAM_BUFFER_SIZE (0x20000)
 
-/******************************************************************************
- *
- *****************************************************************************/
+/* Must be at least as large as two tl packets of maximum size */
+static_assert(HOST_STREAM_BUFFER_SIZE >= (PVRSRVTL_MAX_PACKET_SIZE<<1),
+			  "HOST_STREAM_BUFFER_SIZE is less than (PVRSRVTL_MAX_PACKET_SIZE<<1)");
+static_assert(FW_STREAM_BUFFER_SIZE >= (PVRSRVTL_MAX_PACKET_SIZE<<1),
+			  "FW_STREAM_BUFFER_SIZE is less than (PVRSRVTL_MAX_PACKET_SIZE<<1)");
 
 
 /*
@@ -2545,8 +2550,14 @@ typedef struct
 	IMG_HANDLE          hSD[RGX_HWPERF_STREAM_ID_LAST];
 
 	/* TL Acquire/release state */
-	IMG_PBYTE			pHwpBuf[RGX_HWPERF_STREAM_ID_LAST];
-	IMG_UINT32			ui32HwpBufLen[RGX_HWPERF_STREAM_ID_LAST];
+	IMG_PBYTE			pHwpBuf[RGX_HWPERF_STREAM_ID_LAST];			/*!< buffer returned to user in acquire call */
+	IMG_PBYTE			pHwpBufEnd[RGX_HWPERF_STREAM_ID_LAST];		/*!< pointer to end of HwpBuf */
+	IMG_PBYTE			pTlBuf[RGX_HWPERF_STREAM_ID_LAST];			/*!< buffer obtained via TlAcquireData */
+	IMG_PBYTE			pTlBufPos[RGX_HWPERF_STREAM_ID_LAST];		/*!< initial position in TlBuf to acquire packets */
+	IMG_PBYTE			pTlBufRead[RGX_HWPERF_STREAM_ID_LAST];		/*!< pointer to the last packet read */
+	IMG_UINT32			ui32AcqDataLen[RGX_HWPERF_STREAM_ID_LAST];	/*!< length of acquired TlBuf */
+	IMG_BOOL			bRelease[RGX_HWPERF_STREAM_ID_LAST];		/*!< used to determine whether or not to release currently held TlBuf */
+
 
 } RGX_KM_HWPERF_DEVDATA;
 
@@ -2590,6 +2601,7 @@ PVRSRV_ERROR RGXHWPerfOpen(
 {
 	PVRSRV_ERROR eError;
 	RGX_KM_HWPERF_DEVDATA* psDevData = (RGX_KM_HWPERF_DEVDATA*) hDevData;
+	IMG_UINT32 ui32BufSize;
 
 	/* Valid input argument values supplied by the caller */
 	if (!psDevData)
@@ -2655,8 +2667,34 @@ PVRSRV_ERROR RGXHWPerfOpen(
 		goto e1;
 	}
 
+	/* Allocate a large enough buffer for use during the entire session to
+	 * avoid the need to resize in the Acquire call as this might be in an ISR
+	 * Choose size that can contain at least one packet.
+	 */
+	/* Allocate buffer for FW Stream */
+	ui32BufSize = FW_STREAM_BUFFER_SIZE;
+	psDevData->pHwpBuf[RGX_HWPERF_STREAM_ID0_FW] = OSAllocMem(ui32BufSize);
+	if (psDevData->pHwpBuf[RGX_HWPERF_STREAM_ID0_FW] == NULL)
+	{
+		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+		goto e1;
+	}
+	psDevData->pHwpBufEnd[RGX_HWPERF_STREAM_ID0_FW] = psDevData->pHwpBuf[RGX_HWPERF_STREAM_ID0_FW]+ui32BufSize;
+
+	/* Allocate buffer for Host Stream */
+	ui32BufSize = HOST_STREAM_BUFFER_SIZE;
+	psDevData->pHwpBuf[RGX_HWPERF_STREAM_ID1_HOST] = OSAllocMem(ui32BufSize);
+	if (psDevData->pHwpBuf[RGX_HWPERF_STREAM_ID1_HOST] == NULL)
+	{
+		eError = PVRSRV_ERROR_OUT_OF_MEMORY;
+		goto e2;
+	}
+	psDevData->pHwpBufEnd[RGX_HWPERF_STREAM_ID1_HOST] = psDevData->pHwpBuf[RGX_HWPERF_STREAM_ID1_HOST]+ui32BufSize;
+
 	return PVRSRV_OK;
 
+e2:
+	OSFreeMem(psDevData->pHwpBuf[RGX_HWPERF_STREAM_ID0_FW]);
 e1:
 	RGXHWPerfHostDeInit();
 e0:
@@ -2778,7 +2816,7 @@ PVRSRV_ERROR RGXHWPerfDisableCounters(
 }
 
 
-PVRSRV_ERROR RGXHWPerfAcquireData(
+PVRSRV_ERROR RGXHWPerfAcquireEvents(
 		IMG_HANDLE  hDevData,
 		RGX_HWPERF_STREAM_ID eStreamId,
 		IMG_PBYTE*  ppBuf,
@@ -2786,8 +2824,6 @@ PVRSRV_ERROR RGXHWPerfAcquireData(
 {
 	PVRSRV_ERROR			eError;
 	RGX_KM_HWPERF_DEVDATA*	psDevData = (RGX_KM_HWPERF_DEVDATA*)hDevData;
-	IMG_PBYTE				pTlBuf = NULL;
-	IMG_UINT32				ui32TlBufLen = 0;
 	IMG_PBYTE				pDataDest;
 	IMG_UINT32			ui32TlPackets = 0;
 	IMG_PBYTE			pBufferEnd;
@@ -2804,41 +2840,29 @@ PVRSRV_ERROR RGXHWPerfAcquireData(
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
-	/* Acquire some data to read from the HWPerf TL stream */
-	eError = TLClientAcquireData(DIRECT_BRIDGE_HANDLE,
-								 psDevData->hSD[eStreamId],
-								 &pTlBuf,
-								 &ui32TlBufLen);
-	PVR_LOGR_IF_ERROR(eError, "TLClientAcquireData");
+	if (psDevData->pTlBuf[eStreamId] == NULL)
+	{
+		/* Acquire some data to read from the HWPerf TL stream */
+		eError = TLClientAcquireData(DIRECT_BRIDGE_HANDLE,
+								 	 psDevData->hSD[eStreamId],
+									 &psDevData->pTlBuf[eStreamId],
+									 &psDevData->ui32AcqDataLen[eStreamId]);
+		PVR_LOGR_IF_ERROR(eError, "TLClientAcquireData");
+
+		psDevData->pTlBufPos[eStreamId] = psDevData->pTlBuf[eStreamId];
+	}
 
 	/* TL indicates no data exists so return OK and zero. */
-	if ((pTlBuf == NULL) || (ui32TlBufLen == 0))
+	if ((psDevData->pTlBufPos[eStreamId] == NULL) || (psDevData->ui32AcqDataLen[eStreamId] == 0))
 	{
 		return PVRSRV_OK;
 	}
 
-	/* Is the client buffer allocated and too small? */
-	if (psDevData->pHwpBuf[eStreamId] && (psDevData->ui32HwpBufLen[eStreamId] < ui32TlBufLen))
-	{
-		OSFreeMem(psDevData->pHwpBuf[eStreamId]);
-	}
-
-	/* Do we need to allocate a new client buffer? */
-	if (!psDevData->pHwpBuf[eStreamId])
-	{
-		psDevData->pHwpBuf[eStreamId] = OSAllocMem(ui32TlBufLen);
-		if (psDevData->pHwpBuf[eStreamId]  == NULL)
-		{
-			(void) TLClientReleaseData(DIRECT_BRIDGE_HANDLE, psDevData->hSD[eStreamId]);
-			return PVRSRV_ERROR_OUT_OF_MEMORY;
-		}
-		psDevData->ui32HwpBufLen[eStreamId] = ui32TlBufLen;
-	}
-
 	/* Process each TL packet in the data buffer we have acquired */
-	pBufferEnd = pTlBuf+ui32TlBufLen;
+	pBufferEnd = psDevData->pTlBuf[eStreamId]+psDevData->ui32AcqDataLen[eStreamId];
 	pDataDest = psDevData->pHwpBuf[eStreamId];
-	psHDRptr = GET_PACKET_HDR(pTlBuf);
+	psHDRptr = GET_PACKET_HDR(psDevData->pTlBufPos[eStreamId]);
+	psDevData->pTlBufRead[eStreamId] = psDevData->pTlBufPos[eStreamId];
 	while ( psHDRptr < (PVRSRVTL_PPACKETHDR)pBufferEnd )
 	{
 		ui16TlType = GET_PACKET_TYPE(psHDRptr);
@@ -2847,10 +2871,16 @@ PVRSRV_ERROR RGXHWPerfAcquireData(
 			IMG_UINT16 ui16DataLen = GET_PACKET_DATA_LEN(psHDRptr);
 			if (0 == ui16DataLen)
 			{
-				PVR_DPF((PVR_DBG_ERROR, "RGXHWPerfAcquireData: ZERO Data in TL data packet: %p", psHDRptr));
+				PVR_DPF((PVR_DBG_ERROR, "RGXHWPerfAcquireEvents: ZERO Data in TL data packet: %p", psHDRptr));
 			}
 			else
 			{
+				/* Check next packet does not fill buffer */
+				if (pDataDest + ui16DataLen > psDevData->pHwpBufEnd[eStreamId])
+				{
+					break;
+				}
+
 				/* For valid data copy it into the client buffer and move
 				 * the write position on */
 				OSDeviceMemCopy(pDataDest, GET_PACKET_DATA_PTR(psHDRptr), ui16DataLen);
@@ -2859,20 +2889,28 @@ PVRSRV_ERROR RGXHWPerfAcquireData(
 		}
 		else if (ui16TlType == PVRSRVTL_PACKETTYPE_MOST_RECENT_WRITE_FAILED)
 		{
-			PVR_DPF((PVR_DBG_MESSAGE, "RGXHWPerfAcquireData: Indication that the transport buffer was full"));
+			PVR_DPF((PVR_DBG_MESSAGE, "RGXHWPerfAcquireEvents: Indication that the transport buffer was full"));
 		}
 		else
 		{
 			/* else Ignore padding packet type and others */
-			PVR_DPF((PVR_DBG_MESSAGE, "RGXHWPerfAcquireData: Ignoring TL packet, type %d", ui16TlType ));
+			PVR_DPF((PVR_DBG_MESSAGE, "RGXHWPerfAcquireEvents: Ignoring TL packet, type %d", ui16TlType ));
 		}
 
 		/* Update loop variable to the next packet and increment counts */
 		psHDRptr = GET_NEXT_PACKET_ADDR(psHDRptr);
+		/* Updated to keep track of the next packet to be read. */
+		psDevData->pTlBufRead[eStreamId] = (IMG_PBYTE) psHDRptr;
 		ui32TlPackets++;
 	}
 
-	PVR_DPF((PVR_DBG_VERBOSE, "RGXHWPerfAcquireData: TL Packets processed %03d", ui32TlPackets));
+	PVR_DPF((PVR_DBG_VERBOSE, "RGXHWPerfAcquireEvents: TL Packets processed %03d", ui32TlPackets));
+
+	psDevData->bRelease[eStreamId] = IMG_FALSE;
+	if (psHDRptr >= (PVRSRVTL_PPACKETHDR) pBufferEnd)
+	{
+		psDevData->bRelease[eStreamId] = IMG_TRUE;
+	}
 
 	/* Update output arguments with client buffer details and true length */
 	*ppBuf = psDevData->pHwpBuf[eStreamId];
@@ -2882,11 +2920,11 @@ PVRSRV_ERROR RGXHWPerfAcquireData(
 }
 
 
-PVRSRV_ERROR RGXHWPerfReleaseData(
+PVRSRV_ERROR RGXHWPerfReleaseEvents(
 		IMG_HANDLE hDevData,
 		RGX_HWPERF_STREAM_ID eStreamId)
 {
-	PVRSRV_ERROR			eError;
+	PVRSRV_ERROR			eError = PVRSRV_OK;
 	RGX_KM_HWPERF_DEVDATA*	psDevData = (RGX_KM_HWPERF_DEVDATA*)hDevData;
 
 	/* Valid input argument values supplied by the caller */
@@ -2895,16 +2933,17 @@ PVRSRV_ERROR RGXHWPerfReleaseData(
 		return PVRSRV_ERROR_INVALID_PARAMS;
 	}
 
-	/* Free the client buffer if allocated and reset length */
-	if (psDevData->pHwpBuf[eStreamId])
+	if (psDevData->bRelease[eStreamId])
 	{
-		OSFreeMem(psDevData->pHwpBuf[eStreamId]);
+		/* Inform the TL that we are done with reading the data. */
+		eError = TLClientReleaseData(DIRECT_BRIDGE_HANDLE, psDevData->hSD[eStreamId]);
+		psDevData->ui32AcqDataLen[eStreamId] = 0;
+		psDevData->pTlBuf[eStreamId] = NULL;
 	}
-	psDevData->ui32HwpBufLen[eStreamId] = 0;
-
-	/* Inform the TL that we are done with reading the data. Could perform this
-	 * in the acquire call but felt it worth keeping it symmetrical */
-	eError = TLClientReleaseData(DIRECT_BRIDGE_HANDLE, psDevData->hSD[eStreamId]);
+	else
+	{
+		psDevData->pTlBufPos[eStreamId] = psDevData->pTlBufRead[eStreamId];
+	}
 	return eError;
 }
 
@@ -2981,14 +3020,21 @@ PVRSRV_ERROR RGXHWPerfClose(
 
 	for (uiStreamId = 0; uiStreamId < RGX_HWPERF_STREAM_ID_LAST; uiStreamId++)
 	{
-		/* If the client buffer exists they have not called ReleaseData
+		/* If the TL buffer exists they have not called ReleaseData
 		 * before disconnecting so clean it up */
-		if (psDevData->pHwpBuf[uiStreamId])
+		if (psDevData->pTlBuf[uiStreamId])
 		{
-			/* RGXHWPerfReleaseData call will null out the buffer fields
+			/* TLClientReleaseData call and null out the buffer fields
 			 * and length */
-			eError = RGXHWPerfReleaseData(hDevData, uiStreamId);
-			PVR_LOG_ERROR(eError, "RGXHWPerfReleaseData");
+			eError = TLClientReleaseData(DIRECT_BRIDGE_HANDLE, psDevData->hSD[uiStreamId]);
+			psDevData->ui32AcqDataLen[uiStreamId] = 0;
+			psDevData->pTlBuf[uiStreamId] = NULL;
+			PVR_LOG_IF_ERROR(eError, "TLClientReleaseData");
+			/* Packets may be lost if release was not required */
+			if (!psDevData->bRelease[uiStreamId])
+			{
+				PVR_DPF((PVR_DBG_WARNING, "RGXHWPerfClose: Events in buffer waiting to be read, remaining events may be lost."));
+			}
 		}
 
 		/* Close the TL stream, ignore the error if it occurs as we
@@ -2997,9 +3043,12 @@ PVRSRV_ERROR RGXHWPerfClose(
 		{
 			eError = TLClientCloseStream(DIRECT_BRIDGE_HANDLE,
 										 psDevData->hSD[uiStreamId]);
-			PVR_LOG_ERROR(eError, "TLClientCloseStream");
+			PVR_LOG_IF_ERROR(eError, "TLClientCloseStream");
 			psDevData->hSD[uiStreamId] = NULL;
 		}
+
+		/* Free the client buffers used in session */
+		OSFreeMem(psDevData->pHwpBuf[uiStreamId]);
 	}
 
 	return PVRSRV_OK;
@@ -3012,10 +3061,10 @@ PVRSRV_ERROR RGXHWPerfDisconnect(
 	PVRSRV_ERROR eError = PVRSRV_OK;
 
 	eError = RGXHWPerfClose(hDevData);
-	PVR_LOG_ERROR(eError, "RGXHWPerfClose");
+	PVR_LOG_IF_ERROR(eError, "RGXHWPerfClose");
 
 	eError = RGXHWPerfFreeConnection(hDevData);
-	PVR_LOG_ERROR(eError, "RGXHWPerfFreeConnection");
+	PVR_LOG_IF_ERROR(eError, "RGXHWPerfFreeConnection");
 
 	return eError;
 }

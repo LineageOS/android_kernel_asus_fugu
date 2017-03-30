@@ -4765,10 +4765,10 @@ PVRSRV_ERROR RGXRegisterDevice (PVRSRV_DEVICE_NODE *psDeviceNode)
 	   client device connection  (i.e. this size is relative to a zero-based offset) */
 	if(psDevInfo->sDevFeatureCfg.ui64ErnsBrns & (FIX_HW_BRN_52402_BIT_MASK | FIX_HW_BRN_55091_BIT_MASK))
 	{
-		psDeviceNode->ui64GeneralSVMHeapSize = 0;
+		psDeviceNode->ui64GeneralSVMHeapTopVA = 0;
 	}else
 	{
-		psDeviceNode->ui64GeneralSVMHeapSize = RGX_GENERAL_SVM_HEAP_BASE + RGX_GENERAL_SVM_HEAP_SIZE;
+		psDeviceNode->ui64GeneralSVMHeapTopVA = RGX_GENERAL_SVM_HEAP_BASE + RGX_GENERAL_SVM_HEAP_SIZE;
 	}
 
 	if(NULL != psDeviceNode->psDevConfig->pfnSysDevFeatureDepInit)

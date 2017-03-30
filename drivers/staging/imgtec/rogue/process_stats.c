@@ -57,6 +57,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "connection_server.h"
 #include "pvrsrv.h"
 
+#if defined(DEBUG) || defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS) || \
+    defined(PVRSRV_ENABLE_MEMORY_STATS) || \
+	(defined(PVR_RI_DEBUG) && defined(PVR_RI_DEBUG_DEBUGFS))
+#define ENABLE_DEBUGFS
+#endif
+
 /*
  *  Maximum history of process statistics that will be kept.
  */
@@ -164,9 +170,11 @@ static void _StatsDecrMemTrackedStat(_PVR_STATS_TRACKING_HASH_ENTRY *psTrackingH
 /*
  *  Functions for printing the information stored...
  */
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS)
 void  ProcessStatsPrintElements(void *pvFile,
 								void *pvStatPtr,
 								OS_STATS_PRINTF_FUNC* pfnOSGetStatsPrintf);
+#endif
 
 #if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
 void RawProcessStatsPrintElements(void *pvFile,
@@ -250,9 +258,14 @@ typedef struct _PVRSRV_PROCESS_STATS_ {
 	/* Folder name used to store the statistic */
 	IMG_CHAR							szFolderName[MAX_PROC_NAME_LENGTH];
 
+#if defined(ENABLE_DEBUGFS)
 	/* OS specific data */
 	void								*pvOSPidFolderData;
+#endif
+
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS)
 	void								*pvOSPidEntryData;
+#endif
 
 	/* Stats... */
 	IMG_INT32							i32StatValue[PVRSRV_PROCESS_STAT_TYPE_COUNT];
@@ -319,8 +332,10 @@ typedef struct _PVRSRV_RI_MEMORY_STATS_ {
 	/* OS level process ID */
 	IMG_PID						pid;
 
+#if defined(PVR_RI_DEBUG_DEBUGFS)
 	/* OS specific data */
 	void						*pvOSRIMemEntryData;
+#endif
 } PVRSRV_RI_MEMORY_STATS;
 
 typedef struct _PVRSRV_CACHEOP_STATS_ {
@@ -358,6 +373,7 @@ static POS_LOCK g_psLinkedListLock = NULL;
 #define PROCESS_LOCK_SUBCLASS_CURRENT	1
 #define PROCESS_LOCK_SUBCLASS_PREV 		2
 #define PROCESS_LOCK_SUBCLASS_NEXT 		3
+#if defined(ENABLE_DEBUGFS)
 /*
  * Pointer to OS folder to hold PID folders.
  */
@@ -365,6 +381,7 @@ static IMG_CHAR *pszOSLivePidFolderName = "pid";
 static IMG_CHAR *pszOSDeadPidFolderName = "pids_retired";
 static void *pvOSLivePidFolder = NULL;
 static void *pvOSDeadPidFolder = NULL;
+#endif
 #if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
 static void *pvOSProcStats = NULL;
 #endif
@@ -407,12 +424,18 @@ static POS_LOCK	 gpsSizeTrackingHashTableLock;
 
 static void _AddProcessStatsToFrontOfDeadList(PVRSRV_PROCESS_STATS* psProcessStats);
 static void _AddProcessStatsToFrontOfLiveList(PVRSRV_PROCESS_STATS* psProcessStats);
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS)
 static IMG_UINT32 _PVRSRVIncrMemStatRefCount(void *pvStatPtr);
 static IMG_UINT32 _PVRSRVDecrMemStatRefCount(void *pvStatPtr);
+#endif
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS) || !defined(ENABLE_DEBUGFS)
 static void _DestroyProcessStat(PVRSRV_PROCESS_STATS* psProcessStats);
+#endif
 static void _RemoveProcessStatsFromList(PVRSRV_PROCESS_STATS* psProcessStats);
+#if defined(ENABLE_DEBUGFS)
 static void _RemoveOSStatisticEntries(PVRSRV_PROCESS_STATS* psProcessStats);
 static void _CreateOSStatisticEntries(PVRSRV_PROCESS_STATS* psProcessStats, void *pvOSPidFolder);
+#endif
 static void _DecreaseProcStatValue(PVRSRV_MEM_ALLOC_TYPE eAllocType,
                                    PVRSRV_PROCESS_STATS* psProcessStats,
                                    IMG_UINT32 uiBytes);
@@ -638,7 +661,11 @@ _CompressMemoryUsage(void)
 		PVRSRV_PROCESS_STATS*  psNextProcessStats = psProcessStatsToBeFreed->psNext;
 
 		psProcessStatsToBeFreed->psNext = NULL;
+#if defined(ENABLE_DEBUGFS)
 		_RemoveOSStatisticEntries(psProcessStatsToBeFreed);
+#else
+		_DestroyProcessStat(psProcessStatsToBeFreed);
+#endif
 		psProcessStatsToBeFreed = psNextProcessStats;
 	}
 } /* _CompressMemoryUsage */
@@ -657,6 +684,7 @@ _MoveProcessToDeadList(PVRSRV_PROCESS_STATS* psProcessStats)
 	_AddProcessStatsToFrontOfDeadList(psProcessStats);
 } /* _MoveProcessToDeadList */
 
+#if defined(ENABLE_DEBUGFS)
 static void
 _MoveProcessToDeadListDebugFS(PVRSRV_PROCESS_STATS* psProcessStats)
 {
@@ -664,6 +692,7 @@ _MoveProcessToDeadListDebugFS(PVRSRV_PROCESS_STATS* psProcessStats)
 	_RemoveOSStatisticEntries(psProcessStats);
 	_CreateOSStatisticEntries(psProcessStats, pvOSDeadPidFolder);
 } /* _MoveProcessToDeadListDebugFS */
+#endif
 
 /* These functions move the process stats from the dead to the live list.
  * _MoveProcessToLiveList moves the entry in the global lists and
@@ -679,6 +708,7 @@ _MoveProcessToLiveList(PVRSRV_PROCESS_STATS* psProcessStats)
 	_AddProcessStatsToFrontOfLiveList(psProcessStats);
 } /* _MoveProcessToLiveList */
 
+#if defined(ENABLE_DEBUGFS)
 static void
 _MoveProcessToLiveListDebugFS(PVRSRV_PROCESS_STATS* psProcessStats)
 {
@@ -686,6 +716,7 @@ _MoveProcessToLiveListDebugFS(PVRSRV_PROCESS_STATS* psProcessStats)
 	_RemoveOSStatisticEntries(psProcessStats);
 	_CreateOSStatisticEntries(psProcessStats, pvOSLivePidFolder);
 } /* _MoveProcessToLiveListDebugFS */
+#endif
 
 /*************************************************************************/ /*!
 @Function       _AddProcessStatsToFrontOfLiveList
@@ -808,6 +839,7 @@ _RemoveProcessStatsFromList(PVRSRV_PROCESS_STATS* psProcessStats)
 
 } /* _RemoveProcessStatsFromList */
 
+#if defined(ENABLE_DEBUGFS)
 /*************************************************************************/ /*!
 @Function       _CreateOSStatisticEntries
 @Description    Create all OS entries for this statistic.
@@ -819,11 +851,13 @@ _CreateOSStatisticEntries(PVRSRV_PROCESS_STATS* psProcessStats,
 						  void *pvOSPidFolder)
 {
 	void								*pvOSPidFolderData;
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS)
 	void								*pvOSPidEntryData;
+#endif
 #if defined(PVRSRV_ENABLE_MEMORY_STATS)
 	void								*pvOSMemEntryData;
 #endif
-#if defined(PVR_RI_DEBUG)
+#if defined(PVR_RI_DEBUG_DEBUGFS)
 	void								*pvOSRIMemEntryData;
 #endif
 #if defined(DEBUG)
@@ -833,12 +867,15 @@ _CreateOSStatisticEntries(PVRSRV_PROCESS_STATS* psProcessStats,
 	PVR_ASSERT(psProcessStats != NULL);
 
 	pvOSPidFolderData = OSCreateStatisticFolder(psProcessStats->szFolderName, pvOSPidFolder);
+
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS)
 	pvOSPidEntryData  = OSCreateStatisticEntry("process_stats",
 												pvOSPidFolderData,
 												ProcessStatsPrintElements,
 												_PVRSRVIncrMemStatRefCount,
 												_PVRSRVDecrMemStatRefCount,
 												(void *) psProcessStats);
+#endif
 
 #if defined(PVRSRV_ENABLE_MEMORY_STATS)
 	pvOSMemEntryData = OSCreateStatisticEntry("mem_area",
@@ -849,7 +886,7 @@ _CreateOSStatisticEntries(PVRSRV_PROCESS_STATS* psProcessStats,
 											  (void *) psProcessStats->psMemoryStats);
 #endif
 
-#if defined(PVR_RI_DEBUG)
+#if defined(PVR_RI_DEBUG_DEBUGFS)
 	pvOSRIMemEntryData = OSCreateStatisticEntry("ri_mem_area",
 												 pvOSPidFolderData,
 												 RIMemStatsPrintElements,
@@ -870,11 +907,13 @@ _CreateOSStatisticEntries(PVRSRV_PROCESS_STATS* psProcessStats,
 	OSLockAcquireNested(psProcessStats->hLock, PROCESS_LOCK_SUBCLASS_CURRENT);
 
 	psProcessStats->pvOSPidFolderData = pvOSPidFolderData;
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS)
 	psProcessStats->pvOSPidEntryData  = pvOSPidEntryData;
+#endif
 #if defined(PVRSRV_ENABLE_MEMORY_STATS)
 	psProcessStats->psMemoryStats->pvOSMemEntryData = pvOSMemEntryData;
 #endif
-#if defined(PVR_RI_DEBUG)
+#if defined(PVR_RI_DEBUG_DEBUGFS)
 	psProcessStats->psRIMemoryStats->pvOSRIMemEntryData = pvOSRIMemEntryData;
 #endif
 #if defined(DEBUG)
@@ -898,7 +937,7 @@ _RemoveOSStatisticEntries(PVRSRV_PROCESS_STATS* psProcessStats)
 	OSRemoveStatisticEntry(psProcessStats->psCacheOpStats->pvOSCacheOpEntryData);
 #endif
 
-#if defined(PVR_RI_DEBUG)
+#if defined(PVR_RI_DEBUG_DEBUGFS)
 	OSRemoveStatisticEntry(psProcessStats->psRIMemoryStats->pvOSRIMemEntryData);
 #endif
 
@@ -906,17 +945,21 @@ _RemoveOSStatisticEntries(PVRSRV_PROCESS_STATS* psProcessStats)
 	OSRemoveStatisticEntry(psProcessStats->psMemoryStats->pvOSMemEntryData);
 #endif
 
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS)
 	if( psProcessStats->pvOSPidEntryData != NULL)
 	{
 		OSRemoveStatisticEntry(psProcessStats->pvOSPidEntryData);
 	}
+#endif
+
 	if( psProcessStats->pvOSPidFolderData != NULL)
 	{
 		OSRemoveStatisticFolder(&psProcessStats->pvOSPidFolderData);
 	}
-
 } /* _RemoveOSStatisticEntries */
+#endif /* defined(ENABLE_DEBUGFS) */
 
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS) || !defined(ENABLE_DEBUGFS)
 /*************************************************************************/ /*!
 @Function       _DestroyProcessStat
 @Description    Frees memory and resources held by a process statistic.
@@ -948,7 +991,9 @@ _DestroyProcessStat(PVRSRV_PROCESS_STATS* psProcessStats)
 	/* Free the memory... */
 	OSFreeMemNoStats(psProcessStats);
 } /* _DestroyProcessStat */
+#endif
 
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS)
 static IMG_UINT32 _PVRSRVIncrMemStatRefCount(void *pvStatPtr)
 {
 	PVRSRV_STAT_STRUCTURE_TYPE*  peStructureType = (PVRSRV_STAT_STRUCTURE_TYPE*) pvStatPtr;
@@ -1004,6 +1049,7 @@ static IMG_UINT32 _PVRSRVDecrMemStatRefCount(void *pvStatPtr)
 	}
 	return ui32Res;
 }
+#endif
 
 /*************************************************************************/ /*!
 @Function       PVRSRVStatsInitialise
@@ -1040,9 +1086,11 @@ PVRSRVStatsInitialise(void)
 			goto e1;
 		}
 
+#if defined(ENABLE_DEBUGFS)
 		/* Create a pid folders for putting the PID files in... */
 		pvOSLivePidFolder = OSCreateStatisticFolder(pszOSLivePidFolderName, NULL);
 		pvOSDeadPidFolder = OSCreateStatisticFolder(pszOSDeadPidFolderName, NULL);
+#endif
 #if defined(PVRSRV_ENABLE_MEMTRACK_STATS_FILE)
 		pvOSProcStats = OSCreateRawStatisticEntry("memtrack_stats", NULL,
 		                                          RawProcessStatsPrintElements);
@@ -1129,7 +1177,11 @@ PVRSRVStatsDestroy(void)
 		PVRSRV_PROCESS_STATS*  psProcessStats = g_psLiveList;
 
 		_RemoveProcessStatsFromList(psProcessStats);
+#if defined(ENABLE_DEBUGFS)
 		_RemoveOSStatisticEntries(psProcessStats);
+#else
+		_DestroyProcessStat(psProcessStats);
+#endif
 	}
 
 	while (g_psDeadList != NULL)
@@ -1137,13 +1189,19 @@ PVRSRVStatsDestroy(void)
 		PVRSRV_PROCESS_STATS*  psProcessStats = g_psDeadList;
 
 		_RemoveProcessStatsFromList(psProcessStats);
+#if defined(ENABLE_DEBUGFS)
 		_RemoveOSStatisticEntries(psProcessStats);
+#else
+		_DestroyProcessStat(psProcessStats);
+#endif
 	}
 
+#if defined(ENABLE_DEBUGFS)
 	/* Remove the OS folders used by the PID folders...
 	 * OSRemoveStatisticFolder will NULL the pointers */
 	OSRemoveStatisticFolder(&pvOSLivePidFolder);
 	OSRemoveStatisticFolder(&pvOSDeadPidFolder);
+#endif
 
 	if (gpsSizeTrackingHashTable != NULL)
 	{
@@ -1336,6 +1394,7 @@ PVRSRVStatsRegisterProcess(IMG_HANDLE* phProcessStats)
 
 		*phProcessStats = psProcessStats;
 
+#if defined(ENABLE_DEBUGFS)
 		/* Check if we need to perform any OS operation */
 		if (bMoveProcess)
 		{
@@ -1343,6 +1402,7 @@ PVRSRVStatsRegisterProcess(IMG_HANDLE* phProcessStats)
 			_RemoveOSStatisticEntries(psProcessStats);
 			_CreateOSStatisticEntries(psProcessStats, pvOSLivePidFolder);
 		}
+#endif
 
 		return PVRSRV_OK;
 	}
@@ -1410,6 +1470,7 @@ PVRSRVStatsRegisterProcess(IMG_HANDLE* phProcessStats)
 	_AddProcessStatsToFrontOfLiveList(psProcessStats);
 	OSLockRelease(g_psLinkedListLock);
 
+#if defined(ENABLE_DEBUGFS)
 	/* Create the process stat in the OS... */
 #if defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS)
 	OSSNPrintf(psProcessStats->szFolderName, sizeof(psProcessStats->szFolderName),
@@ -1419,6 +1480,7 @@ PVRSRVStatsRegisterProcess(IMG_HANDLE* phProcessStats)
 			   "%d", currentPid);
 #endif
 	_CreateOSStatisticEntries(psProcessStats, pvOSLivePidFolder);
+#endif
 
 	/* Done */
 	*phProcessStats = (IMG_HANDLE) psProcessStats;
@@ -1467,11 +1529,13 @@ PVRSRVStatsDeregisterProcess(IMG_HANDLE hProcessStats)
 		}
 		OSLockRelease(g_psLinkedListLock);
 
+#if defined(ENABLE_DEBUGFS)
 		/* The OS calls need to be performed without g_psLinkedListLock */
 		if (bMoveProcess == IMG_TRUE)
 		{
 			_MoveProcessToDeadListDebugFS(psProcessStats);
 		}
+#endif
 
 		/* Check if the dead list needs to be reduced */
 		_CompressMemoryUsage();
@@ -1650,7 +1714,9 @@ _PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		OSSNPrintf(psProcessStats->szFolderName, sizeof(psProcessStats->szFolderName),
 				   "%d_%s", currentPid, acFolderName);
 
+#if defined(ENABLE_DEBUGFS)
 		_CreateOSStatisticEntries(psProcessStats, pvOSLivePidFolder);
+#endif
 #else  /* defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS) */
 		OSLockRelease(g_psLinkedListLock);
 #endif /* defined(PVRSRV_DEBUG_LINUX_MEMORY_STATS) */
@@ -1826,7 +1892,9 @@ _PVRSRVStatsAddMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 		OSLockAcquire(g_psLinkedListLock);
 		_MoveProcessToLiveList(psProcessStats);
 		OSLockRelease(g_psLinkedListLock);
+#if defined(ENABLE_DEBUGFS)
 		_MoveProcessToLiveListDebugFS(psProcessStats);
+#endif
 	}
 	return;
 
@@ -1980,7 +2048,9 @@ PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 			OSLockAcquire(g_psLinkedListLock);
 			_MoveProcessToDeadList(psProcessStats);
 			OSLockRelease(g_psLinkedListLock);
+#if defined(ENABLE_DEBUGFS)
 			_MoveProcessToDeadListDebugFS(psProcessStats);
+#endif
 
 			/* Check if the dead list needs to be reduced */
 			_CompressMemoryUsage();
@@ -2163,11 +2233,13 @@ PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 			/* Add it to the live list... */
 			_AddProcessStatsToFrontOfLiveList(psProcessStats);
 
+#if define(ENABLE_DEBUGFS)
 			/* Create the process stat in the OS... */
 			OSSNPrintf(psProcessStats->szFolderName, sizeof(psProcessStats->szFolderName),
 					"%d_%s", currentPid, acFolderName);
 
 			_CreateOSStatisticEntries(psProcessStats, pvOSLivePidFolder);
+#endif
 		}
 #else
 		OSLockRelease(g_psLinkedListLock);
@@ -2266,7 +2338,9 @@ PVRSRVStatsIncrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 			OSLockAcquire(g_psLinkedListLock);
 			_MoveProcessToLiveList(psProcessStats);
 			OSLockRelease(g_psLinkedListLock);
+#if defined(ENABLE_DEBUGFS)
 			_MoveProcessToLiveListDebugFS(psProcessStats);
+#endif
 		}
     }
 }
@@ -2560,7 +2634,9 @@ PVRSRVStatsDecrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE eAllocType,
 			OSLockAcquire(g_psLinkedListLock);
 			_MoveProcessToDeadList(psProcessStats);
 			OSLockRelease(g_psLinkedListLock);
+#if defined(ENABLE_DEBUGFS)
 			_MoveProcessToDeadListDebugFS(psProcessStats);
+#endif
 
 			/* Check if the dead list needs to be reduced */
 			_CompressMemoryUsage();
@@ -2711,6 +2787,7 @@ PVRSRVStatsUpdateFreelistStats(IMG_UINT32 ui32NumGrowReqByApp,
 	OSLockRelease(g_psLinkedListLock);
 } /* PVRSRVStatsUpdateFreelistStats */
 
+#if defined(PVRSRV_ENABLE_PROCESS_STATS_DEBUGFS)
 /*************************************************************************/ /*!
 @Function       ProcessStatsPrintElements
 @Description    Prints all elements for this process statistic record.
@@ -2751,6 +2828,7 @@ ProcessStatsPrintElements(void *pvFile,
 		ui32StatNumber++;
 	}
 } /* ProcessStatsPrintElements */
+#endif
 
 #if defined(DEBUG)
 /* Divide a number by 10 using shifts only */
@@ -3166,7 +3244,7 @@ MemStatsPrintElements(void *pvFile,
 } /* MemStatsPrintElements */
 #endif
 
-#if defined(PVR_RI_DEBUG)
+#if defined(PVR_RI_DEBUG_DEBUGFS)
 /*************************************************************************/ /*!
 @Function       RIMemStatsPrintElements
 @Description    Prints all elements for the RI Memory record.

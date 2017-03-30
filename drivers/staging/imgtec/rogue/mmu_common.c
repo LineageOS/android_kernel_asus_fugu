@@ -501,8 +501,6 @@ _SetupCleanup_FreeMMUMapping(PVRSRV_DEVICE_NODE *psDevNode,
 	psCleanupItem->psDevNode = psDevNode;
 	psCleanupItem->psMMUCtxCleanupData = psCleanupData;
 
-	OSLockAcquire(psCleanupData->hCleanupLock);
-
 	psCleanupData->uiRef++;
 
 	/* Move the page tables to free to the cleanup item */
@@ -512,8 +510,6 @@ _SetupCleanup_FreeMMUMapping(PVRSRV_DEVICE_NODE *psDevNode,
 	/* Add the cleanup item itself to the context list */
 	dllist_add_to_tail(&psCleanupData->sMMUCtxCleanupItemsHead,
 	                   &psCleanupItem->sMMUCtxCleanupItem);
-
-	OSLockRelease(psCleanupData->hCleanupLock);
 
 	/* Setup the cleanup thread data and add the work item */
 	psCleanupItem->sCleanupThreadFn.pfnFree = _CleanupThread_FreeMMUMapping;
@@ -2456,6 +2452,9 @@ MMU_ContextDestroy (MMU_CONTEXT *psMMUContext)
 		PVR_ASSERT(psMMUContext->sBaseLevelInfo.ui32RefCount == 0);
 	}
 
+	/* Cleanup lock must be acquired before MMUContext lock. Reverse order
+	 * may lead to a deadlock and is reported by lockdep. */
+	OSLockAcquire(psCleanupData->hCleanupLock);
 	OSLockAcquire(psMMUContext->hLock);
 
 	/* Free the top level MMU object - will be put on defer free list.
@@ -2468,8 +2467,6 @@ MMU_ContextDestroy (MMU_CONTEXT *psMMUContext)
 	/* Empty the temporary defer-free list of Px */
 	_FreeMMUMapping(psDevNode, &psMMUContext->psPhysMemCtx->sTmpMMUMappingHead);
 	PVR_ASSERT(dllist_is_empty(&psMMUContext->psPhysMemCtx->sTmpMMUMappingHead));
-
-	OSLockAcquire(psCleanupData->hCleanupLock);
 
 	/* Empty the defer free list so the cleanup thread will
 	 * not have to access any MMU context related structures anymore */
@@ -2620,6 +2617,11 @@ MMU_Free (MMU_CONTEXT *psMMUContext,
 	sDevVAddrEnd = sDevVAddr;
 	sDevVAddrEnd.uiAddr += uiSize;
 
+	/* The Cleanup lock has to be taken before the MMUContext hLock to
+	 * prevent deadlock scenarios. It is necessary only for parts of
+	 * _SetupCleanup_FreeMMUMapping though.*/
+	OSLockAcquire(psMMUContext->psPhysMemCtx->psCleanupData->hCleanupLock);
+
 	OSLockAcquire(psMMUContext->hLock);
 
 	_FreePageTables(psMMUContext,
@@ -2631,6 +2633,8 @@ MMU_Free (MMU_CONTEXT *psMMUContext,
 	                             psMMUContext->psPhysMemCtx);
 
 	OSLockRelease(psMMUContext->hLock);
+
+	OSLockRelease(psMMUContext->psPhysMemCtx->psCleanupData->hCleanupLock);
 
 	return;
 

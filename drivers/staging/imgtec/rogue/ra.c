@@ -1165,6 +1165,12 @@ RA_Add (RA_ARENA *pArena,
 		return IMG_FALSE;
 	}
 
+	if(uSize == 0)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "RA_Add: invalid size 0 added to arena %s", pArena->name));
+		return IMG_FALSE;
+	}
+
 	OSLockAcquireNested(pArena->hLock, pArena->ui32LockClass);
 	PVR_ASSERT(is_arena_valid(pArena));
 	PVR_DPF ((PVR_DBG_MESSAGE, "RA_Add: name='%s', "

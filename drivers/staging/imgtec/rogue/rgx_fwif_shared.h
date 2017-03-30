@@ -296,6 +296,7 @@ typedef struct _RGXFWIF_HWRTDATA_
 	IMG_UINT32				ui32PPPGridOffset;
 	IMG_UINT64				RGXFW_ALIGN ui64PPPMultiSampleCtl;
 	IMG_UINT32				ui32TPCStride;
+	IMG_UINT32				bLastWasPartial; /*!< Whether the last render was a partial render */
 	IMG_DEV_VIRTADDR		RGXFW_ALIGN sTailPtrsDevVAddr;
 	IMG_UINT32				ui32TPCSize;
 	IMG_UINT32				ui32TEScreen;

@@ -296,13 +296,13 @@ PVRSRVConnectKM(CONNECTION_DATA *psConnection,
 	}
 
 	/* Set flags to indicate shared-virtual-memory (SVM) allocation availability */
-	if (! psDeviceNode->ui64GeneralSVMHeapSize || ! ui64ProcessVASpaceSize)
+	if (! psDeviceNode->ui64GeneralSVMHeapTopVA || ! ui64ProcessVASpaceSize)
 	{
 		*pui32CapabilityFlags |= PVRSRV_DEVMEM_SVM_ALLOC_UNSUPPORTED;
 	}
 	else
 	{
-		if (ui64ProcessVASpaceSize <= psDeviceNode->ui64GeneralSVMHeapSize)
+		if (ui64ProcessVASpaceSize <= psDeviceNode->ui64GeneralSVMHeapTopVA)
 		{
 			*pui32CapabilityFlags |= PVRSRV_DEVMEM_SVM_ALLOC_SUPPORTED;
 		}

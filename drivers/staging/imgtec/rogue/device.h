@@ -276,8 +276,8 @@ typedef struct _PVRSRV_DEVICE_NODE_
 	/* information about the device's address space and heaps */
 	DEVICE_MEMORY_INFO		sDevMemoryInfo;
 
-	/* device's shared-virtual-memory heap size */
-	IMG_UINT64				ui64GeneralSVMHeapSize;
+	/* device's shared-virtual-memory heap max virtual address */
+	IMG_UINT64				ui64GeneralSVMHeapTopVA;
 
 	/* private device information */
 	void					*pvDevice;

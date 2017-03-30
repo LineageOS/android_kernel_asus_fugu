@@ -171,8 +171,8 @@ EXPORT_SYMBOL(RGXHWPerfDisconnect);
 EXPORT_SYMBOL(RGXHWPerfControl);
 EXPORT_SYMBOL(RGXHWPerfConfigureAndEnableCounters);
 EXPORT_SYMBOL(RGXHWPerfDisableCounters);
-EXPORT_SYMBOL(RGXHWPerfAcquireData);
-EXPORT_SYMBOL(RGXHWPerfReleaseData);
+EXPORT_SYMBOL(RGXHWPerfAcquireEvents);
+EXPORT_SYMBOL(RGXHWPerfReleaseEvents);
 #endif
 
 CONNECTION_DATA *LinuxConnectionFromFile(struct file *pFile)
