@@ -1591,6 +1591,8 @@ DCDisplayContextConfigureCheck_exit:
 
 
 
+
+	if (hBuffersInt2)
 	{
 		IMG_UINT32 i;
 
@@ -1872,6 +1874,8 @@ DCDisplayContextConfigure_exit:
 
 
 
+
+	if (hBuffersInt2)
 	{
 		IMG_UINT32 i;
 
@@ -1893,6 +1897,8 @@ DCDisplayContextConfigure_exit:
 
 
 
+
+	if (hSyncInt2)
 	{
 		IMG_UINT32 i;
 
@@ -2275,6 +2281,8 @@ DCBufferImport_exit:
 
 
 
+
+	if (hImportInt2)
 	{
 		IMG_UINT32 i;
 

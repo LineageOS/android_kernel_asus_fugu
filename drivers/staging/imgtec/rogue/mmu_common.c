@@ -123,7 +123,7 @@ typedef enum _MMU_MOD_
 typedef struct _MMU_CTX_CLEANUP_DATA_
 {
 	/*! Refcount to know when this structure can be destroyed */
-	IMG_UINT32 uiRef;
+	ATOMIC_T iRef;
 	/*! Protect items in this structure, especially the refcount */
 	POS_LOCK hCleanupLock;
 	/*! List of all cleanup items currently in flight */
@@ -424,12 +424,9 @@ e0:
 	 * destroyed. */
 	if (eError == PVRSRV_OK)
 	{
-		IMG_UINT32 uiRef;
-
-		uiRef = --psMMUCtxCleanupData->uiRef;
 		OSLockRelease(psMMUCtxCleanupData->hCleanupLock);
 
-		if (uiRef == 0)
+		if (OSAtomicDecrement(&psMMUCtxCleanupData->iRef) == 0)
 		{
 			OSLockDestroy(psMMUCtxCleanupData->hCleanupLock);
 			OSFreeMem(psMMUCtxCleanupData);
@@ -501,7 +498,7 @@ _SetupCleanup_FreeMMUMapping(PVRSRV_DEVICE_NODE *psDevNode,
 	psCleanupItem->psDevNode = psDevNode;
 	psCleanupItem->psMMUCtxCleanupData = psCleanupData;
 
-	psCleanupData->uiRef++;
+	OSAtomicIncrement(&psCleanupData->iRef);
 
 	/* Move the page tables to free to the cleanup item */
 	dllist_replace_head(&psPhysMemCtx->sTmpMMUMappingHead,
@@ -2375,7 +2372,7 @@ MMU_ContextCreate(PVRSRV_DEVICE_NODE *psDevNode,
 	OSLockCreate(&psCtx->psCleanupData->hCleanupLock, LOCK_TYPE_PASSIVE);
 	psCtx->psCleanupData->bMMUContextExists = IMG_TRUE;
 	dllist_init(&psCtx->psCleanupData->sMMUCtxCleanupItemsHead);
-	psCtx->psCleanupData->uiRef = 1;
+	OSAtomicWrite(&psCtx->psCleanupData->iRef, 1);
 
 	/* allocate the base level object */
 	/*
@@ -2441,7 +2438,6 @@ MMU_ContextDestroy (MMU_CONTEXT *psMMUContext)
 
 	PVRSRV_DEVICE_NODE *psDevNode = (PVRSRV_DEVICE_NODE *) psMMUContext->psDevNode;
 	MMU_CTX_CLEANUP_DATA *psCleanupData = psMMUContext->psPhysMemCtx->psCleanupData;
-	IMG_UINT32 uiRef;
 
 	PVR_DPF ((PVR_DBG_MESSAGE, "MMU_ContextDestroy: Enter"));
 
@@ -2485,11 +2481,10 @@ MMU_ContextDestroy (MMU_CONTEXT *psMMUContext)
 	PVR_ASSERT(dllist_is_empty(&psCleanupData->sMMUCtxCleanupItemsHead));
 
 	psCleanupData->bMMUContextExists = IMG_FALSE;
-	uiRef = --psCleanupData->uiRef;
 
 	OSLockRelease(psCleanupData->hCleanupLock);
 
-	if (uiRef == 0)
+	if (OSAtomicDecrement(&psCleanupData->iRef) == 0)
 	{
 		OSLockDestroy(psCleanupData->hCleanupLock);
 		OSFreeMem(psCleanupData);

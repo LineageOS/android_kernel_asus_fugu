@@ -247,6 +247,8 @@ CacheOpQueue_exit:
 
 
 
+
+	if (hPMRInt2)
 	{
 		IMG_UINT32 i;
 

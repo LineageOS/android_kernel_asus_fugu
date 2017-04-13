@@ -280,6 +280,8 @@ RGXCreateHWRTData_exit:
 
 
 
+
+	if (hapsFreeListsInt2)
 	{
 		IMG_UINT32 i;
 
@@ -2315,6 +2317,8 @@ RGXKickTA3D_exit:
 
 
 
+
+	if (hClientTAFenceSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -2336,6 +2340,8 @@ RGXKickTA3D_exit:
 
 
 
+
+	if (hClientTAUpdateSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -2357,6 +2363,8 @@ RGXKickTA3D_exit:
 
 
 
+
+	if (hServerTASyncsInt2)
 	{
 		IMG_UINT32 i;
 
@@ -2378,6 +2386,8 @@ RGXKickTA3D_exit:
 
 
 
+
+	if (hClient3DFenceSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -2399,6 +2409,8 @@ RGXKickTA3D_exit:
 
 
 
+
+	if (hClient3DUpdateSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -2420,6 +2432,8 @@ RGXKickTA3D_exit:
 
 
 
+
+	if (hServer3DSyncsInt2)
 	{
 		IMG_UINT32 i;
 
@@ -2500,6 +2514,8 @@ RGXKickTA3D_exit:
 
 
 
+
+	if (hSyncPMRsInt2)
 	{
 		IMG_UINT32 i;
 

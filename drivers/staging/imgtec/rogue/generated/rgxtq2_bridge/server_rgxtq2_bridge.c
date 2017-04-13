@@ -799,6 +799,8 @@ RGXTDMSubmitTransfer_exit:
 
 
 
+
+	if (hFenceUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -820,6 +822,8 @@ RGXTDMSubmitTransfer_exit:
 
 
 
+
+	if (hUpdateUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -841,6 +845,8 @@ RGXTDMSubmitTransfer_exit:
 
 
 
+
+	if (hServerSyncInt2)
 	{
 		IMG_UINT32 i;
 
@@ -862,6 +868,8 @@ RGXTDMSubmitTransfer_exit:
 
 
 
+
+	if (hSyncPMRsInt2)
 	{
 		IMG_UINT32 i;
 

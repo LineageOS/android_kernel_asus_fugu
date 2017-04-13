@@ -1187,6 +1187,8 @@ RGXSubmitTransfer_exit:
 
 
 
+
+	if (hFenceUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -1212,6 +1214,8 @@ RGXSubmitTransfer_exit:
 
 
 
+
+	if (hUpdateUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -1237,6 +1241,8 @@ RGXSubmitTransfer_exit:
 
 
 
+
+	if (hServerSyncInt2)
 	{
 		IMG_UINT32 i;
 
@@ -1262,6 +1268,8 @@ RGXSubmitTransfer_exit:
 
 
 
+
+	if (hSyncPMRsInt2)
 	{
 		IMG_UINT32 i;
 

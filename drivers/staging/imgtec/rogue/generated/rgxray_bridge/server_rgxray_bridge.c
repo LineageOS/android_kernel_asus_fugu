@@ -942,6 +942,8 @@ RGXKickRS_exit:
 
 
 
+
+	if (hClientFenceUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -963,6 +965,8 @@ RGXKickRS_exit:
 
 
 
+
+	if (hClientUpdateUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -984,6 +988,8 @@ RGXKickRS_exit:
 
 
 
+
+	if (hServerSyncsInt2)
 	{
 		IMG_UINT32 i;
 
@@ -1403,6 +1409,8 @@ RGXKickVRDM_exit:
 
 
 
+
+	if (hClientFenceUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -1424,6 +1432,8 @@ RGXKickVRDM_exit:
 
 
 
+
+	if (hClientUpdateUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -1445,6 +1455,8 @@ RGXKickVRDM_exit:
 
 
 
+
+	if (hServerSyncsInt2)
 	{
 		IMG_UINT32 i;
 

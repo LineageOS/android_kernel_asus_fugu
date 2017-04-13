@@ -167,6 +167,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)) */
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
+static inline unsigned int refcount_read(const atomic_t *r)
+{
+	return atomic_read(r);
+}
+#define drm_mm_insert_node(mm, node, size) drm_mm_insert_node(mm, node, size, 0, DRM_MM_SEARCH_DEFAULT) 
+
+#define drm_helper_mode_fill_fb_struct(dev, fb, mode_cmd) drm_helper_mode_fill_fb_struct(fb, mode_cmd)
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)) */
+
 #if !defined(CHROMIUMOS_WORKAROUNDS_KERNEL318)
 #define dev_pm_opp_of_add_table of_init_opp_table
 #define dev_pm_opp_of_remove_table of_free_opp_table

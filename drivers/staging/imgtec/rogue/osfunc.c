@@ -53,7 +53,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/delay.h>
 #include <linux/genalloc.h>
 #include <linux/string.h>
-#include <linux/sched.h>
 #include <asm/hardirq.h>
 #include <asm/tlbflush.h>
 #include <linux/timer.h>
@@ -73,6 +72,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/pfn_t.h>
 #include <linux/pfn.h>
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)) */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))
+#include <linux/sched/clock.h>
+#include <linux/sched/signal.h>
+#else
+#include <linux/sched.h>
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)) */
 
 #include "log2.h"
 #include "osfunc.h"
@@ -489,7 +494,11 @@ static inline IMG_UINT64 KClockns64(void)
 {
 	ktime_t sTime = ktime_get();
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+	return sTime;
+#else
 	return sTime.tv64;
+#endif
 }
 
 PVRSRV_ERROR OSClockMonotonicns64(IMG_UINT64 *pui64Time)

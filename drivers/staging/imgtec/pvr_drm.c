@@ -137,16 +137,24 @@ err_exit:
 	return err;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
 static int pvr_drm_unload(struct drm_device *ddev)
+#else
+static void pvr_drm_unload(struct drm_device *ddev)
+#endif
 {
 	DRM_DEBUG_DRIVER("device %p\n", ddev->dev);
+
+	drm_mode_config_cleanup(ddev);
 
 	PVRSRVCommonDeviceDeinit(ddev->dev_private);
 
 	PVRSRVDeviceDestroy(ddev->dev_private);
 	ddev->dev_private = NULL;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
 	return 0;
+#endif
 }
 
 static int pvr_drm_open(struct drm_device *ddev, struct drm_file *dfile)

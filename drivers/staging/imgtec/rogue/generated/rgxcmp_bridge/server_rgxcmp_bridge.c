@@ -731,6 +731,8 @@ RGXKickCDM_exit:
 
 
 
+
+	if (hClientFenceUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -752,6 +754,8 @@ RGXKickCDM_exit:
 
 
 
+
+	if (hClientUpdateUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -773,6 +777,8 @@ RGXKickCDM_exit:
 
 
 
+
+	if (hServerSyncsInt2)
 	{
 		IMG_UINT32 i;
 

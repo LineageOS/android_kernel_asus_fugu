@@ -850,6 +850,8 @@ ServerSyncGetStatus_exit:
 
 
 
+
+	if (hSyncHandleInt2)
 	{
 		IMG_UINT32 i;
 
@@ -1121,6 +1123,8 @@ SyncPrimOpCreate_exit:
 
 
 
+
+	if (hBlockListInt2)
 	{
 		IMG_UINT32 i;
 
@@ -1142,6 +1146,8 @@ SyncPrimOpCreate_exit:
 
 
 
+
+	if (hServerSyncInt2)
 	{
 		IMG_UINT32 i;
 

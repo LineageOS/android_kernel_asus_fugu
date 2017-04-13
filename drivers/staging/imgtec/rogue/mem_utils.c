@@ -143,7 +143,23 @@ void DeviceMemCopy(void *pvDst, const void *pvSrc, size_t uSize)
 	}
 	else
 	{
-		if (uSrcUnaligned == sizeof(int) && uDstUnaligned == sizeof(int))
+		if (uSrcUnaligned == uDstUnaligned)
+		{
+			/* Neither pointer is usefully aligned, but they are misaligned in
+			 * the same way, so we can copy a preamble in a slow way, then
+			 * optimize the rest.
+			 */
+			uPreambleBytes = MIN(sizeof(block_t) - uDstUnaligned, uSize);
+			uSize -= uPreambleBytes;
+			while (uPreambleBytes)
+			{
+				*pcDst++ = *pcSrc++;
+				uPreambleBytes--;
+			}
+
+			bBlockCopy = 1;
+		}
+		else if ((uSrcUnaligned | uDstUnaligned) % sizeof(int) == 0)
 		{
 			/* Both pointers are at least 32-bit aligned, and we assume that
 			 * the processor must handle all kinds of 32-bit load-stores.
@@ -163,22 +179,6 @@ void DeviceMemCopy(void *pvDst, const void *pvSrc, size_t uSize)
 				pcSrc = (char *)piSrc;
 				pcDst = (char *)piDst;
 			}
-		}
-		else if (uSrcUnaligned == uDstUnaligned)
-		{
-			/* Neither pointer is usefully aligned, but they are misaligned in
-			 * the same way, so we can copy a preamble in a slow way, then
-			 * optimize the rest.
-			 */
-			uPreambleBytes = MIN(sizeof(block_t) - uDstUnaligned, uSize);
-			uSize -= uPreambleBytes;
-			while (uPreambleBytes)
-			{
-				*pcDst++ = *pcSrc++;
-				uPreambleBytes--;
-			}
-
-			bBlockCopy = 1;
 		}
 	}
 

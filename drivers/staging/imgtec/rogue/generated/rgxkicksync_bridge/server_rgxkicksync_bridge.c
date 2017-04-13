@@ -605,6 +605,8 @@ RGXKickSync_exit:
 
 
 
+
+	if (hFenceUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -626,6 +628,8 @@ RGXKickSync_exit:
 
 
 
+
+	if (hUpdateUFOSyncPrimBlockInt2)
 	{
 		IMG_UINT32 i;
 
@@ -647,6 +651,8 @@ RGXKickSync_exit:
 
 
 
+
+	if (hServerSyncInt2)
 	{
 		IMG_UINT32 i;
 

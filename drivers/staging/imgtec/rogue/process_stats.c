@@ -2474,8 +2474,8 @@ void RawProcessStatsPrintElements(void *pvFile,
 	                 "MemoryUsageKMalloc",           // PVRSRV_PROCESS_STAT_TYPE_KMALLOC
 	                 "MemoryUsageAllocPTMemoryUMA",  // PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA
 	                 "MemoryUsageAllocPTMemoryLMA",  // PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_LMA
-	                 "MemoryUsageAllocGPUMemUMA",    // PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES
-	                 "MemoryUsageAllocGPUMemLMA"     // PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES
+	                 "MemoryUsageAllocGPUMemLMA",    // PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES
+	                 "MemoryUsageAllocGPUMemUMA"     // PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES
 	                 );
 
 	OSLockAcquire(g_psLinkedListLock);
@@ -2489,8 +2489,8 @@ void RawProcessStatsPrintElements(void *pvFile,
 		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_KMALLOC],
 		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_UMA],
 		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_PAGES_PT_LMA],
-		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES],
-		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES]
+		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_LMA_PAGES],
+		                 psProcessStats->i32StatValue[PVRSRV_PROCESS_STAT_TYPE_ALLOC_UMA_PAGES]
 		                 );
 
 		psProcessStats = psProcessStats->psNext;
