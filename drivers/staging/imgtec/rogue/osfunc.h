@@ -1688,6 +1688,12 @@ void OSUserModeAccessToPerfCountersEn(void);
 */ /**************************************************************************/
 PVRSRV_ERROR OSDebugSignalPID(IMG_UINT32 ui32PID);
 
+#if defined(LINUX) && defined(__KERNEL__)
+#define OSWarnOn(a) WARN_ON(a)
+#else
+#define OSWarnOn(a) do { if(!!(a)) { OSDumpStack(); } } while(0)
+#endif
+
 #if defined(CONFIG_L4)
 #include <asm/api-l4env/api.h>
 #include <asm/io.h>

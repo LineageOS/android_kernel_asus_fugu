@@ -1244,7 +1244,8 @@ enum PVRSRV_ERROR pvr_sync_append_fences(
 			goto err_free_append_data;
 		}
 
-#if defined(CHROMIUMOS_WORKAROUNDS_KERNEL318)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)) && \
+    defined(CHROMIUMOS_WORKAROUNDS_KERNEL318)
 		update_fence = sync_fence_create(name, &update_point->pt.base);
 #else
 		update_fence = sync_fence_create(name, &update_point->pt);
@@ -1852,7 +1853,8 @@ static long pvr_sync_ioctl_sw_create_fence(struct sw_sync_timeline *timeline,
 	}
 
 	data.name[sizeof(data.name) - 1] = '\0';
-#if defined(CHROMIUMOS_WORKAROUNDS_KERNEL318)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)) && \
+    defined(CHROMIUMOS_WORKAROUNDS_KERNEL318)
 	fence = sync_fence_create(data.name, &sync_pt->base);
 #else
 	fence = sync_fence_create(data.name, sync_pt);

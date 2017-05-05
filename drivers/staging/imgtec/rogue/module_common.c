@@ -173,6 +173,13 @@ EXPORT_SYMBOL(RGXHWPerfConfigureAndEnableCounters);
 EXPORT_SYMBOL(RGXHWPerfDisableCounters);
 EXPORT_SYMBOL(RGXHWPerfAcquireEvents);
 EXPORT_SYMBOL(RGXHWPerfReleaseEvents);
+EXPORT_SYMBOL(RGXHWPerfConvertCRTimeStamp);
+#if defined(SUPPORT_KERNEL_HWPERF_TEST)
+EXPORT_SYMBOL(OSAddTimer);
+EXPORT_SYMBOL(OSEnableTimer);
+EXPORT_SYMBOL(OSDisableTimer);
+EXPORT_SYMBOL(OSRemoveTimer);
+#endif
 #endif
 
 CONNECTION_DATA *LinuxConnectionFromFile(struct file *pFile)
