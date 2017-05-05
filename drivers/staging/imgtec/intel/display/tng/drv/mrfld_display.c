@@ -312,6 +312,47 @@ static void mrfld_crtc_dpms(struct drm_crtc *crtc, int mode)
 		return;
 #endif
 
+	if (pipe == 1 && dev_priv->psb_hotplug_state) {
+		if (mode == DRM_MODE_DPMS_OFF) {
+			flush_workqueue(dev_priv->power_wq);
+
+			DCLockMutex();
+			DC_MRFLD_onPowerOff(1);
+			/* give time to the last flip to take effective, if we
+			 * disable hardware too quickly, overlay hardware may
+			 * crash, causing pipe hang next time when we try to
+			 * use overlay
+			 */
+			msleep(50);
+
+			drm_handle_vblank(dev, 1);
+			/* Turn off vsync interrupt. */
+			drm_vblank_off(dev, 1);
+
+			/* Make the pending flip request as completed. */
+			DCUnAttachPipe(1);
+			DCUnLockMutex();
+
+			android_hdmi_suspend_display(dev);
+		} else {
+			android_hdmi_resume_display(dev);
+
+			/*
+			 * Devices connect status will be changed
+			 * when system suspend,re-detect once here.
+			 */
+			if (android_hdmi_is_connected(dev)) {
+				DCLockMutex();
+				DCAttachPipe(1);
+				DC_MRFLD_onPowerOn(1);
+				mid_hdmi_audio_resume(dev);
+				DCUnLockMutex();
+			}
+		}
+
+		return;
+	}
+
 	power_island = pipe_to_island(pipe);
 
 	if (!power_island_get(power_island))
