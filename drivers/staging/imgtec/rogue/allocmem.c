@@ -365,7 +365,10 @@ IMG_INTERNAL void (OSFreeMem)(void *pvMem)
 		{
 #if !defined(PVR_DISABLE_KMALLOC_MEMSTATS)
 #if !defined(PVRSRV_ENABLE_MEMORY_STATS)
-			PVRSRVStatsDecrMemAllocStat(PVRSRV_MEM_ALLOC_TYPE_KMALLOC, ksize(pvMem));
+			{
+				IMG_UINT32 *puiTemp = (IMG_UINT32*) (((IMG_BYTE*)pvMem) + (ksize(pvMem) - ALLOCMEM_MEMSTATS_PADDING));
+				PVRSRVStatsDecrMemKAllocStat(ksize(pvMem), *puiTemp);
+			}
 #else
 			PVRSRVStatsRemoveMemAllocRecord(PVRSRV_MEM_ALLOC_TYPE_KMALLOC,
 			                                (IMG_UINT64)(uintptr_t) pvMem);
