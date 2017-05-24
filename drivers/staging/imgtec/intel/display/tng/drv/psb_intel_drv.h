@@ -238,6 +238,7 @@ struct psb_intel_crtc {
 	/* Saved Crtc HW states */
 	struct psb_intel_crtc_state *crtc_state;
 #endif
+	bool in_mode_setting;
 };
 
 #define to_psb_intel_crtc(x)	\

@@ -312,7 +312,8 @@ static void mrfld_crtc_dpms(struct drm_crtc *crtc, int mode)
 		return;
 #endif
 
-	if (pipe == 1 && dev_priv->psb_hotplug_state) {
+	if ((!psb_intel_crtc->in_mode_setting) && (pipe == 1) &&
+			dev_priv->psb_hotplug_state) {
 		if (mode == DRM_MODE_DPMS_OFF) {
 			flush_workqueue(dev_priv->power_wq);
 

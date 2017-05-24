@@ -183,13 +183,19 @@ int psb_intel_pipe_set_base(struct drm_crtc *crtc,
 static void psb_intel_crtc_prepare(struct drm_crtc *crtc)
 {
 	struct drm_crtc_helper_funcs *crtc_funcs = crtc->helper_private;
+	struct psb_intel_crtc *psb_intel_crtc = to_psb_intel_crtc(crtc);
+
+	psb_intel_crtc->in_mode_setting = true;
 	crtc_funcs->dpms(crtc, DRM_MODE_DPMS_OFF);
 }
 
 static void psb_intel_crtc_commit(struct drm_crtc *crtc)
 {
 	struct drm_crtc_helper_funcs *crtc_funcs = crtc->helper_private;
+	struct psb_intel_crtc *psb_intel_crtc = to_psb_intel_crtc(crtc);
+
 	crtc_funcs->dpms(crtc, DRM_MODE_DPMS_ON);
+	psb_intel_crtc->in_mode_setting = false;
 }
 
 void psb_intel_encoder_prepare(struct drm_encoder *encoder)
