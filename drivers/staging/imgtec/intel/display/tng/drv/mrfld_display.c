@@ -519,6 +519,10 @@ static void mrfld_crtc_dpms(struct drm_crtc *crtc, int mode)
 		   if it's on this pipe */
 		/* psb_intel_crtc_dpms_video(crtc, true); TODO */
 
+		if (psb_intel_crtc->in_mode_setting && (pipe == 1) &&
+				!dev_priv->hdmi_first_boot)
+			android_hdmi_resume_display(dev);
+
 		break;
 	case DRM_MODE_DPMS_OFF:
 		DCLockMutex();
