@@ -114,6 +114,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * a day to check for any missed clean-up. */
 #define CLEANUP_THREAD_WAIT_SLEEP_TIMEOUT 0x01B77400
 
+/*! When unloading try a few times to free everything remaining on the list */
+#define CLEANUP_THREAD_UNLOAD_RETRY 4
 
 typedef struct DEBUG_REQUEST_ENTRY_TAG
 {
@@ -540,6 +542,7 @@ static void CleanupThread(void *pvData)
 	IMG_BOOL     bRetryWorkList = IMG_FALSE;
 	IMG_HANDLE	 hOSEvent;
 	PVRSRV_ERROR eRc;
+	IMG_UINT32 uiUnloadRetry = 0;
 
 	/* Store the process id (pid) of the clean-up thread */
 	psPVRSRVData->cleanupThreadPid = OSGetCurrentProcessID();
@@ -555,9 +558,17 @@ static void CleanupThread(void *pvData)
 	/* While the driver is in a good state and is not being unloaded
 	 * try to free any deferred items when signalled
 	 */
-	while ((psPVRSRVData->eServicesState == PVRSRV_SERVICES_STATE_OK) && 
-			(!psPVRSRVData->bUnload))
+	while ((psPVRSRVData->eServicesState == PVRSRV_SERVICES_STATE_OK))
 	{
+		if (psPVRSRVData->bUnload)
+		{
+			if (dllist_is_empty(&psPVRSRVData->sCleanupThreadWorkList) ||
+					uiUnloadRetry > CLEANUP_THREAD_UNLOAD_RETRY)
+			{
+				break;
+			}
+			uiUnloadRetry++;
+		}
 		/* Wait until signalled for deferred clean up OR wait for a
 		 * short period if the previous deferred clean up was not able
 		 * to release all the resources before trying again.
