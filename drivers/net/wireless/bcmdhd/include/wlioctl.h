@@ -2544,6 +2544,9 @@ enum {
 #define PFN_SWC_MAX_NUM_APS       16
 #define PFN_HOTLIST_MAX_NUM_APS   64
 
+#define MAX_EPNO_HIDDEN_SSID         8
+#define MAX_WHITELIST_SSID           2
+
 /* PFN network info structure */
 typedef struct wl_pfn_subnet_info {
 	struct ether_addr BSSID;
@@ -2634,12 +2637,6 @@ typedef struct wl_pfn_bssid {
 	/* Bit4: suppress_lost, Bit3: suppress_found */
 	uint16             flags;
 } wl_pfn_bssid_t;
-
-typedef struct wl_pfn_significant_bssid {
-	struct ether_addr	macaddr;
-	int8    rssi_low_threshold;
-	int8    rssi_high_threshold;
-} wl_pfn_significant_bssid_t;
 
 #define WL_PFN_SUPPRESSFOUND_MASK	0x08
 #define WL_PFN_SUPPRESSLOST_MASK	0x10
