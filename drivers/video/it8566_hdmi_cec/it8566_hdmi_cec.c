@@ -361,7 +361,7 @@ static ssize_t dbg_cec_tx_write(struct file *file,
 	buf[buf_size] = 0;
 
 	b = buf;
-	while (sscanf(b, "%x%n", &d, &offset) == 1) {
+	while (i < sizeof(user_data) && sscanf(b, "%x%n", &d, &offset) == 1) {
 		b += offset;
 		user_data[i] = (unsigned char)d;
 		i++;
