@@ -63,6 +63,9 @@
 
 #ifndef __HAVE_ARCH_CRYPTO_MEMNEQ
 
+/* Make the optimizer believe the variable can be manipulated arbitrarily. */
+#define OPTIMIZER_HIDE_VAR(var) __asm__ ("" : "=r" (var) : "0" (var))
+
 /* Generic path for arbitrary size */
 static inline unsigned long
 __crypto_memneq_generic(const void *a, const void *b, size_t size)
